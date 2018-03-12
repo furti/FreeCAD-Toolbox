@@ -4,21 +4,23 @@ import FreeCAD,FreeCADGui
 import FreeCAD
 from PySide import QtGui
 
-def findSelectedSketch():
-    selection = [o for o in FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name) if o.TypeId == "Sketcher::SketchObject"]
+def findSelectedBody():
+    selection = [o for o in FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name) if o.TypeId == "PartDesign::Body"]
 
     if len(selection) == 1:
         return selection[0]
     else:
-           QtGui.QMessageBox.information(  QtGui.qApp.activeWindow(), "Selection Error", "Select a single Sketch to perform the Operation")
+           QtGui.QMessageBox.information(  QtGui.qApp.activeWindow(), "Selection Error", "Select a single Body to perform the Operation")
 
            return None
 
-def activateSketch(sketch):
-    FreeCADGui.activeDocument().setEdit(sketch.Name)
+def createSketch(body):
+    sketch = body.newObject('Sketcher::SketchObject','Sketch')
+    sketch.Support = (FreeCAD.activeDocument().XY_Plane, [''])
+    sketch.MapMode = 'FlatFace'
+    FreeCAD.ActiveDocument.recompute()
 
-def deactivateSketch(sketch):
-    FreeCADGui.activeDocument().resetEdit()
+    return sketch
 
 def drawConstructionGeometry(sketch, width, height, columnCount, rowCount):
     halfHeight = height / 2
@@ -86,16 +88,11 @@ def drawDiamond(sketch, startLineNumber, width, height, columnCount, rowCount):
     lines.append(Part.LineSegment(bottomLeftPoint.add(rightMiddle), bottomLeftPoint.add(bottomMiddle)))
     lines.append(Part.LineSegment(bottomLeftPoint.add(bottomMiddle), bottomLeftPoint.add(leftMiddle)))
 
-    # Connect the points of the diamond to the construction geometry
-    #constraints.append(Sketcher.Constraint('Coincident', startLineNumber, 2, startLineNumber + 1, 1))
-    #constraints.append(Sketcher.Constraint('Coincident', startLineNumber + 1, 2, startLineNumber + 2, 1))
-    #constraints.append(Sketcher.Constraint('Coincident', startLineNumber + 2, 2, startLineNumber + 3, 1))
-    #constraints.append(Sketcher.Constraint('Coincident', startLineNumber, 1, startLineNumber + 3, 2))
     leftLine = 0
     topLine = 1
     rightLine = 2
     bottomLine = 3
-    # Connect the diamonds to the construction geometry. left top right bottom
+    # Connect points of the diamond to the construction geometry
     constraints.append(Sketcher.Constraint('Symmetric', leftLine, 1, leftLine, 2, startLineNumber, 1))
     constraints.append(Sketcher.Constraint('Symmetric', topLine, 1, topLine, 2, startLineNumber, 2))
     constraints.append(Sketcher.Constraint('Symmetric', topLine, 1, topLine, 2, startLineNumber + 1, 1))
@@ -118,12 +115,13 @@ class DiamondCommand:
                 'ToolTip' : "Create a Sketch of connected diamonds"}
 
     def Activated(self):
-        selectedSketch = findSelectedSketch()
+        selectedBody = findSelectedBody()
+        sketch = createSketch(selectedBody)
         
-        if selectedSketch is not None:
-           activateSketch(selectedSketch)
-           lastLineNumber = drawConstructionGeometry(selectedSketch, 50, 20, 5, 1)
-           drawDiamond(selectedSketch, lastLineNumber + 1, 50, 20, 5, 1)
+        lastLineNumber = drawConstructionGeometry(sketch, 50, 20, 5, 1)
+        drawDiamond(sketch, lastLineNumber + 1, 50, 20, 5, 1)
+
+        FreeCAD.ActiveDocument.recompute()
 
     def IsActive(self):
         """If there is no active document we can't add a sketch to it."""
