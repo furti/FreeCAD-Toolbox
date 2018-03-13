@@ -22,6 +22,53 @@ def createSketch(body):
 
     return sketch
 
+def createPad(body, sketch):
+    pad = body.newObject("PartDesign::Pad","Pad")
+    pad.Profile = sketch
+    pad.Length = 10.0
+    pad.Reversed = 0
+
+    FreeCAD.ActiveDocument.recompute()
+    FreeCADGui.activeDocument().hide(sketch.Name)
+
+    viewBody = body.ViewObject
+    pad.ViewObject.ShapeColor=viewBody.ShapeColor
+    pad.ViewObject.LineColor=viewBody.LineColor
+    pad.ViewObject.PointColor=viewBody.PointColor
+    pad.ViewObject.Transparency=viewBody.Transparency
+    pad.ViewObject.DisplayMode=viewBody.DisplayMode
+    
+    FreeCAD.ActiveDocument.recompute()
+    
+    FreeCAD.ActiveDocument.recompute()
+
+    return pad
+
+def createLinearPattern(body, pad, sketch, width, columnCount):
+    linearPattern = body.newObject("PartDesign::LinearPattern","LinearPattern")
+
+    FreeCAD.ActiveDocument.recompute()
+
+    # we have to substract the width of a single column because the first object is already there
+    # And substract 1 so that the duplicates overlap
+    length = width - width / columnCount - 1
+
+    linearPattern.Originals = [pad,]
+    linearPattern.Direction = (sketch, ["H_Axis"])
+    linearPattern.Length = length
+    linearPattern.Occurrences = columnCount
+
+    FreeCAD.ActiveDocument.recompute()
+
+    viewBody = body.ViewObject
+    linearPattern.ViewObject.ShapeColor=viewBody.ShapeColor
+    linearPattern.ViewObject.LineColor=viewBody.LineColor
+    linearPattern.ViewObject.PointColor=viewBody.PointColor
+    linearPattern.ViewObject.Transparency=viewBody.Transparency
+    linearPattern.ViewObject.DisplayMode=viewBody.DisplayMode
+
+    body.Tip = linearPattern
+
 def drawConstructionGeometry(sketch, width, height, columnCount, rowCount):
     halfHeight = height / 2
     halfWidth = width / 2
@@ -66,6 +113,8 @@ def drawConstructionGeometry(sketch, width, height, columnCount, rowCount):
     sketch.addGeometry(gridLines,True)
     sketch.addConstraint(gridConstraints)
 
+    FreeCAD.ActiveDocument.recompute()
+
     return 3
 
 def drawDiamond(sketch, startLineNumber, width, height, columnCount, rowCount):
@@ -105,6 +154,8 @@ def drawDiamond(sketch, startLineNumber, width, height, columnCount, rowCount):
     sketch.addGeometry(lines,False)
     sketch.addConstraint(constraints)
 
+    FreeCAD.ActiveDocument.recompute()
+
 
 class DiamondCommand:
     """Cread a rows of diamonds in a sketch"""
@@ -121,7 +172,8 @@ class DiamondCommand:
         lastLineNumber = drawConstructionGeometry(sketch, 50, 20, 5, 1)
         drawDiamond(sketch, lastLineNumber + 1, 50, 20, 5, 1)
 
-        FreeCAD.ActiveDocument.recompute()
+        pad = createPad(selectedBody, sketch)
+        createLinearPattern(selectedBody, pad, sketch, 50, 5)
 
     def IsActive(self):
         """If there is no active document we can't add a sketch to it."""
