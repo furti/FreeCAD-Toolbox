@@ -1,8 +1,8 @@
 
-import FreeCAD,FreeCADGui
-
-import FreeCAD
+import FreeCAD,FreeCADGui, os
 from PySide import QtGui
+
+uipath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../Resources/ui')
 
 def findSelectedBody():
     selection = [o for o in FreeCADGui.Selection.getSelection(FreeCAD.ActiveDocument.Name) if o.TypeId == "PartDesign::Body"]
@@ -167,17 +167,36 @@ class DiamondCommand:
 
     def Activated(self):
         selectedBody = findSelectedBody()
-        sketch = createSketch(selectedBody)
-        
-        lastLineNumber = drawConstructionGeometry(sketch, 50, 20, 5, 1)
-        drawDiamond(sketch, lastLineNumber + 1, 50, 20, 5, 1)
 
-        pad = createPad(selectedBody, sketch)
-        createLinearPattern(selectedBody, pad, sketch, 50, 5)
+        if selectedBody is not None:
+            dialog = DiamondDialog(selectedBody)
+            FreeCADGui.Control.showDialog(dialog)
 
     def IsActive(self):
         """If there is no active document we can't add a sketch to it."""
         return not FreeCAD.ActiveDocument is None
+
+class DiamondDialog:
+    def __init__(self, selectedBody):
+        self.selectedBody = selectedBody
+        self.form = FreeCADGui.PySideUic.loadUi("%s/Diamond.ui"%uipath)
+
+    def accept(self):
+        width = float(self.form.WidthBox.text())
+        height = float(self.form.HeightBox.text())
+
+        sketch = createSketch(self.selectedBody)
+        
+        lastLineNumber = drawConstructionGeometry(sketch, width, height, 5, 1)
+        drawDiamond(sketch, lastLineNumber + 1, width, height, 5, 1)
+
+        pad = createPad(self.selectedBody, sketch)
+        createLinearPattern(self.selectedBody, pad, sketch, width, 5)
+        
+        FreeCADGui.Control.closeDialog()
+
+    def reject(self):
+        FreeCADGui.Control.closeDialog()
 
 if __name__ == "__main__":
     command = DiamondCommand();
