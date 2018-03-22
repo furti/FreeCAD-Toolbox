@@ -1,5 +1,5 @@
 
-import FreeCAD,FreeCADGui, os
+import FreeCAD, FreeCADGui, os
 from PySide import QtGui
 
 uipath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../Resources/ui')
@@ -44,6 +44,54 @@ def createPad(body, sketch):
 
     return pad
 
+def createMultiPattern(body, pad, sketch, width, height, columnCount, rowCount):
+    multiPattern = body.newObject("PartDesign::MultiTransform","MultiTransform")
+
+    FreeCAD.ActiveDocument.recompute()
+
+    multiPattern.Originals = [pad,]
+    multiPattern.Shape = pad.Shape
+
+    FreeCAD.ActiveDocument.recompute()
+
+    viewBody = body.ViewObject
+    viewPattern = multiPattern.ViewObject
+
+    viewPattern.ShapeColor=viewBody.ShapeColor
+    viewPattern.LineColor=viewBody.LineColor
+    viewPattern.PointColor=viewBody.PointColor
+    viewPattern.Transparency=viewBody.Transparency
+    viewPattern.DisplayMode=viewBody.DisplayMode
+
+    body.Tip = multiPattern
+
+    FreeCAD.ActiveDocument.recompute()
+
+    # we have to substract the width of a single column because the first object is already there
+    # And substract 1 so that the duplicates overlap
+    columnPatternLength = width - width / columnCount - 1
+
+    columnPattern = body.newObject("PartDesign::LinearPattern","LinearPattern")
+    columnPattern.Direction = (sketch, ["H_Axis"])
+    columnPattern.Length = columnPatternLength
+    columnPattern.Occurrences = columnCount
+    columnPattern.ViewObject.Visibility=False
+
+    # we have to substract the height of a single row because the first object is already there
+    # And substract 1 so that the duplicates overlap
+    rowPatternLength = height - height / rowCount - 1
+
+    rowPattern = body.newObject("PartDesign::LinearPattern","LinearPattern")
+    rowPattern.Direction = (sketch, ["V_Axis"])
+    rowPattern.Length = rowPatternLength
+    rowPattern.Occurrences = rowCount
+    rowPattern.ViewObject.Visibility=False
+
+    multiPattern.Transformations = [columnPattern, rowPattern,]
+    FreeCADGui.activeDocument().hide(pad.Name)
+
+    FreeCAD.ActiveDocument.recompute()
+
 def createLinearPattern(body, pad, sketch, width, columnCount):
     linearPattern = body.newObject("PartDesign::LinearPattern","LinearPattern")
 
@@ -66,6 +114,8 @@ def createLinearPattern(body, pad, sketch, width, columnCount):
     linearPattern.ViewObject.PointColor=viewBody.PointColor
     linearPattern.ViewObject.Transparency=viewBody.Transparency
     linearPattern.ViewObject.DisplayMode=viewBody.DisplayMode
+
+    FreeCADGui.activeDocument().hide(pad.Name)
 
     body.Tip = linearPattern
 
@@ -184,14 +234,20 @@ class DiamondDialog:
     def accept(self):
         width = float(self.form.WidthBox.text())
         height = float(self.form.HeightBox.text())
+        columns = self.form.ColumnsBox.value()
+        rows = self.form.RowsBox.value()
 
         sketch = createSketch(self.selectedBody)
         
-        lastLineNumber = drawConstructionGeometry(sketch, width, height, 5, 1)
-        drawDiamond(sketch, lastLineNumber + 1, width, height, 5, 1)
+        lastLineNumber = drawConstructionGeometry(sketch, width, height, columns, rows)
+        drawDiamond(sketch, lastLineNumber + 1, width, height, columns, rows)
 
         pad = createPad(self.selectedBody, sketch)
-        createLinearPattern(self.selectedBody, pad, sketch, width, 5)
+
+        if rows > 1:
+            createMultiPattern(self.selectedBody, pad, sketch, width, height, columns, rows)
+        else:
+            createLinearPattern(self.selectedBody, pad, sketch, width, columns)
         
         FreeCADGui.Control.closeDialog()
 
