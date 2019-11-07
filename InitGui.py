@@ -1,21 +1,22 @@
-class ToolboxWorkbench (Workbench):
-    "Collection of different useful tools for FreeCAD"
+import FreeCAD
+import FreeCADGui
 
-    def __init__(self):
-        # TODO: Add icon self.__class__.Icon = "path/to/icon"
-        self.__class__.MenuText = "Toolbox"
-        self.__class__.ToolTip = "Collection of useful Tools"
+class ToolboxWorkbench (FreeCADGui.Workbench):
+    "Collection of different useful tools for FreeCAD"
+    
+    MenuText = "Toolbox"
+    ToolTip = "Collection of useful Tools"
+        # TODO: Add icon self.__class__.Icon = "path/to/icon"        
 
     def Initialize(self):
         # Initialize the module
-        import ToolboxSketchTools
+        import gui.toolbar_manager as toolbar_manager
 
-        self.sketchTools = ToolboxSketchTools.tools
-
-        self.appendToolbar("Sketcher Tools", self.sketchTools)
+        for name,commands in toolbar_manager.toolbarManager.Toolbars.items():
+            self.appendToolbar(name,[command.commandName for command in commands])
 
 #    def Activated(self):
 
 #   def Deactivated(self):
 
-Gui.addWorkbench(ToolboxWorkbench())
+FreeCADGui.addWorkbench(ToolboxWorkbench())
