@@ -15,6 +15,22 @@ class ViewProviderFloorBuilder():
         children.extend(self.Object.Slabs)
 
         return children
+    
+    def onChanged(self, vobj, prop):
+        if prop == 'Visibility':
+            self.toggleSlabs(vobj)
+
+    def toggleSlabs(self, vobj):
+        floorBuilder = vobj.Object
+
+        if not floorBuilder.Slabs:
+            return
+        
+        for slab in floorBuilder.Slabs:
+            if vobj.Visibility:
+                slab.ViewObject.show()
+            else:
+                slab.ViewObject.hide()
 
     def getDisplayModes(self, obj):
         return ["Standard"]
