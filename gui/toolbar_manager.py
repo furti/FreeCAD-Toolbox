@@ -12,3 +12,4 @@ toolbarManager = ToolbarManager()
 
 # import commands here
 import commands.create_floor_builder
+import commands.create_wood_extract
