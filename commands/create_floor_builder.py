@@ -28,7 +28,10 @@ def createFloor(base):
     obj.Label = "Floor"
     
     FloorBuilder(obj, base)
+    
     ViewProviderFloorBuilder(obj.ViewObject)
+    base.ViewObject.hide()
+
 
     FreeCAD.ActiveDocument.recompute()
 
