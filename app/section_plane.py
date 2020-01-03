@@ -95,12 +95,10 @@ def groupObjects(objectsToProcess, cutplane):
             groups["drafts"].append(o)
         elif looksLikeDraft(o):
             groups["drafts"].append(o)
+        elif objectType == "Window":
+            groups["windows"].append(o)
         elif not objectType in typesToIgnore:
             groups["objects"].append(o)
-        if objectType == "Window":
-            groups["windows"].append(o)
-
-    print(groups)
 
     return groups
 
@@ -164,12 +162,14 @@ class BoundBox():
 class SimpleSectionPlane:
     def __init__(self, obj):
         obj.Proxy = self
-        self.sectionSVG = None
+        self.sectionSVG = ''
+        self.windowSVG = ''
 
         self.setupProperties(obj)
 
     def setupProperties(self, obj):
         pl = obj.PropertiesList
+        self.Object = obj
 
         if not "Placement" in pl:
             obj.addProperty("App::PropertyPlacement", "Placement", "SectionPlane", QT_TRANSLATE_NOOP(
@@ -191,6 +191,10 @@ class SimpleSectionPlane:
             obj.addProperty("App::PropertyFile", "TargetFile",
                             "SectionPlane", "Target svg file to write to")
 
+        if not "SkipCompute" in pl:
+            obj.addProperty("App::PropertyBool", "SkipCompute",
+                            "SectionPlane", "Skip Computing").SkipCompute = True
+
         if not "Scale" in pl:
             obj.addProperty("App::PropertyFloat", "Scale",
                             "SectionPlane", "Scale to apply to output svg").Scale = 1/50
@@ -200,7 +204,19 @@ class SimpleSectionPlane:
     def onDocumentRestored(self, obj):
         self.setProperties(obj)
 
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self, state):
+        return None
+
     def execute(self, obj):
+        if obj.SkipCompute:
+            return
+
+        self.doExecute(obj)
+
+    def doExecute(self, obj):
         cutplane = self.calculateCutPlane(obj)
 
         objectsToProcess = filterObjects(
@@ -222,11 +238,13 @@ class SimpleSectionPlane:
         # self.boundBox.adaptFromShapes(groups["drafts"])
 
     def buildSectionsSvg(self, obj, render):
-        self.sectionSVG = render.getSectionSVG()
+        self.sectionSVG = render.getSectionSVG(linewidth=25)
+        self.windowSVG = render.getWindowSVG(linewidth=5)
 
     def render(self, obj, groups, cutplane):
         render = section_vector_renderer.Renderer(obj.Placement)
         render.addObjects(groups["objects"])
+        render.addWindows(groups["windows"])
         render.cut(cutplane)
 
         return render
@@ -257,6 +275,9 @@ class SimpleSectionPlane:
         return p
 
     def getSvg(self, width=420, height=297, scale=1/50):
+        if not self.sectionSVG:
+            self.doExecute(self.Object)
+
         template = """
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
@@ -279,6 +300,7 @@ class SimpleSectionPlane:
         id="layer1">
         
         SECTION_SVG
+        WINDOW_SVG
     </g>
 </svg>
 """
@@ -287,6 +309,7 @@ class SimpleSectionPlane:
         template = template.replace(
             "HEIGHT", section_vector_renderer.toNumberString(height))
         template = template.replace("SECTION_SVG", self.sectionSVG)
+        template = template.replace("WINDOW_SVG", self.windowSVG)
         # template = template.replace("SCALE_VALUE", str(scale))
         template = template.replace(
             "VIEWBOX_VALUES", self.boundBox.buildViewbox(scale, width, height))

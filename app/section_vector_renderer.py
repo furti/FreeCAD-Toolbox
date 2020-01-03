@@ -14,12 +14,11 @@ PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    patternTransform="matrix(5,0,0,5,0,0)"
-    x="0" y="0" width="10" height="10">
+    x="0" y="0" width="100" height="100">
         <g>
-            <rect width="10" height="10" 
+            <rect width="100" height="100"
                 style="stroke:none; fill:#ffffff" />
-                <path style="stroke:PATTERN_COLOR; stroke-width:1" d="M0,0 l10,10" />
+                <path style="stroke:PATTERN_COLOR; stroke-width:5" d="M0,0 l100,100" />
         </g>
 </pattern>
 """
@@ -45,14 +44,10 @@ class Renderer:
         if DEBUG:
             print("Renderer initialized on " + str(self.wp))
 
-    def __str__(self):
-        return "Arch Renderer: " + str(len(self.faces)) + " faces projected on " + str(self.wp)
-
     def reset(self):
         "removes all faces from this renderer"
-        self.objects = []
-        self.shapes = []
-        self.faces = []
+        self.objectShapes = []
+        self.windowShapes = []
         self.resetFlags()
 
     def resetFlags(self):
@@ -63,6 +58,7 @@ class Renderer:
         self.iscut = False
         self.joined = False
         self.sections = []
+        self.windows = []
         self.hiddenEdges = []
 
     def addObjects(self, objs):
@@ -70,10 +66,20 @@ class Renderer:
 
         for o in objs:
             if o.isDerivedFrom("Part::Feature"):
-                self.objects.append(o)
                 color = o.ViewObject.ShapeColor
                 if o.Shape.Faces:
-                    self.shapes.append([o.Shape, color])
+                    self.objectShapes.append([o.Shape, color])
+
+        self.resetFlags()
+
+    def addWindows(self, objs):
+        "add objects to this renderer"
+
+        for o in objs:
+            if o.isDerivedFrom("Part::Feature"):
+                color = o.ViewObject.ShapeColor
+                if o.Shape.Faces:
+                    self.windowShapes.append([o.Shape, color])
 
         self.resetFlags()
 
@@ -85,6 +91,8 @@ class Renderer:
 
         if self.sections:
             self.sections = [self.projectFace(f) for f in self.sections]
+        if self.windows:
+            self.windows = [self.projectFace(f) for f in self.windows]
         if self.hiddenEdges:
             self.hiddenEdges = [self.projectEdge(e) for e in self.hiddenEdges]
 
@@ -134,56 +142,76 @@ class Renderer:
             return Part.LineSegment(v1, v2).toShape()
         return edge
 
+    def doCut(self, cutplane, hidden, shapes):
+        objectShapes = []
+        sections = []
+
+        shps = []
+
+        for sh in shapes:
+            shps.append(sh[0])
+
+        cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
+            cutplane, shps)
+
+        if cutface and cutvolume:
+
+            for sh in shapes:
+                for sol in sh[0].Solids:
+                    c = sol.cut(cutvolume)
+                    objectShapes.append([c]+sh[1:])
+
+                    for f in c.Faces:
+                        if DraftGeomUtils.isCoplanar([f, cutface]):
+                            print("COPLANAR")
+                            sections.append([f, sh[1]])
+
+                    if hidden:
+                        c = sol.cut(invcutvolume)
+                        self.hiddenEdges.extend(c.Edges)
+
+        return (objectShapes, sections)
+
     def cut(self, cutplane, hidden=False):
-        "Cuts through the shapes with a given cut plane and builds section faces"
+        "Cuts through the objectShapes with a given cut plane and builds section faces"
         if DEBUG:
             print("\n\n======> Starting cut\n\n")
 
         if self.iscut:
             return
 
-        if not self.shapes:
+        if not self.objectShapes:
             if DEBUG:
                 print("No objects to make sections")
         else:
-            shps = []
+            objectShapes, sections = self.doCut(
+                cutplane, hidden, self.objectShapes)
 
-            for sh in self.shapes:
-                shps.append(sh[0])
+            self.objectShapes = objectShapes
+            self.sections = sections
 
-            cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
-                cutplane, shps)
+            if DEBUG:
+                print("Built ", len(self.sections), " sections, ")
 
-            if cutface and cutvolume:
-                shapes = []
-                sections = []
+        if not self.windowShapes:
+            if DEBUG:
+                print("No objects to make sections")
+        else:
+            windowShapes, windows = self.doCut(
+                cutplane, hidden, self.windowShapes)
 
-                for sh in self.shapes:
-                    for sol in sh[0].Solids:
-                        c = sol.cut(cutvolume)
-                        shapes.append([c]+sh[1:])
+            self.windowShapes = windowShapes
+            self.windows = windows
 
-                        for f in c.Faces:
-                            if DraftGeomUtils.isCoplanar([f, cutface]):
-                                print("COPLANAR")
-                                sections.append([f, sh[1]])
+            if DEBUG:
+                print("Built ", len(self.sections), " sections, ")
 
-                        if hidden:
-                            c = sol.cut(invcutvolume)
-                            self.hiddenEdges.extend(c.Edges)
+        self.iscut = True
+        self.oriented = False
+        self.trimmed = False
+        self.sorted = False
+        self.joined = False
 
-                self.shapes = shapes
-                self.sections = sections
-
-                if DEBUG:
-                    print("Built ", len(self.sections), " sections, ",
-                          len(self.faces), " faces retained")
-
-                self.iscut = True
-                self.oriented = False
-                self.trimmed = False
-                self.sorted = False
-                self.joined = False
         if DEBUG:
             print("\n\n======> Finished cut\n\n")
 
@@ -247,7 +275,7 @@ class Renderer:
 
         return patternsvg
 
-    def getSectionSVG(self, linewidth=1):
+    def getSectionSVG(self, linewidth=0.5):
         "Returns a SVG fragment from cut faces"
         if not self.oriented:
             self.reorient()
@@ -272,6 +300,32 @@ class Renderer:
                 sectionsvg += current + "\n"
 
         return self.getPatternSVG() + sectionsvg
+
+    def getWindowSVG(self, linewidth=0.2):
+        "Returns a SVG fragment from cut faces"
+        if not self.oriented:
+            self.reorient()
+
+        self.patterns = {}
+
+        windowsvg = ''
+
+        for f in self.windows:
+            if f:
+                fill = 'url(#' + self.getPattern(f[1]) + ')'
+
+                pathdata = ''
+
+                for w in f[0].Wires:
+                    pathdata += self.getPathData(w)
+
+                current = PATH_TEMPLATE.replace("PATH_FILL", fill)
+                current = current.replace("STROKE_WIDTH", str(linewidth))
+                current = current.replace("PATH_DATA", pathdata)
+
+                windowsvg += current + "\n"
+
+        return self.getPatternSVG() + windowsvg
 
     def getHiddenSVG(self, linewidth=0.02):
         "Returns a SVG fragment from cut geometry"
