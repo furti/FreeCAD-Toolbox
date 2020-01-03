@@ -169,6 +169,14 @@ class SimpleSectionPlane:
             obj.addProperty("App::PropertyLinkList", "ExcludeObjects", "SectionPlane", QT_TRANSLATE_NOOP(
                 "App::Property", "The objects that will be excluded by this section plane, even if they are matched by the IncludeObjects list"))
 
+        if not "TargetFile" in pl:
+            obj.addProperty("App::PropertyFile", "TargetFile",
+                            "SectionPlane", "Target svg file to write to")
+
+        if not "Scale" in pl:
+            obj.addProperty("App::PropertyFloat", "Scale",
+                            "SectionPlane", "Scale to apply to output svg").Scale = 1/50
+
         self.Type = "SimpleSectionPlane"
 
     def onDocumentRestored(self, obj):
