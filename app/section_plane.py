@@ -81,32 +81,40 @@ def groupObjects(objectsToProcess, cutplane):
         "objects": []
     }
 
+    typesToIgnore = ["BuildingPart", "Group"]
+
     for o in objectsToProcess:
-        if Draft.getType(o) == "Space":
+        objectType = Draft.getType(o)
+
+        if objectType == "Space":
             groups["spaces"].append(o)
-        elif Draft.getType(o) in ["Dimension", "Annotation", "Label", "DraftText"]:
+        elif objectType in ["Dimension", "Annotation", "Label", "DraftText"]:
             if isOriented(o, cutplane):
                 groups["drafts"].append(o)
         elif o.isDerivedFrom("Part::Part2DObject"):
             groups["drafts"].append(o)
         elif looksLikeDraft(o):
             groups["drafts"].append(o)
-        else:
+        elif not objectType in typesToIgnore:
             groups["objects"].append(o)
-        if Draft.getType(o) == "Window":
+        if objectType == "Window":
             groups["windows"].append(o)
+
+    print(groups)
 
     return groups
 
 
 class BoundBox():
     def __init__(self):
+        self.initialized = False
         self.minx = 0
         self.miny = 0
         self.maxx = 0
         self.maxy = 0
 
     def buildViewbox(self, scale, width, height):
+        print((self.minx, self.miny, self.maxx, self.maxy))
         scaledWidth = width / scale
         scaledHeight = height / scale
 
@@ -127,6 +135,16 @@ class BoundBox():
                 self.update(bb.XMin, bb.YMin, bb.XMax, bb.YMax)
 
     def update(self, minx, miny, maxx, maxy):
+        if not self.initialized:
+            self.minx = minx
+            self.miny = miny
+            self.maxx = maxx
+            self.maxy = maxy
+
+            self.initialized = True
+
+            return
+
         if minx < self.minx:
             self.minx = minx
         if miny < self.miny:
@@ -284,10 +302,10 @@ if __name__ == "__main__":
             "App::FeaturePython", "SectionPlane")
         SimpleSectionPlane(simpleSectionPlaneObject)
 
-        simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.Wall003]
         # simpleSectionPlaneObject.IncludeObjects = [
-        #     FreeCAD.ActiveDocument.BuildingPart]
+        #     FreeCAD.ActiveDocument.Wall003]
+        simpleSectionPlaneObject.IncludeObjects = [
+            FreeCAD.ActiveDocument.BuildingPart]
 
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
