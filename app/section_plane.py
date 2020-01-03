@@ -1,6 +1,6 @@
 import FreeCAD
 import Draft
-import section_vector_renderer
+import app.section_vector_renderer as section_vector_renderer
 
 from FreeCAD import Vector
 
