@@ -169,48 +169,91 @@ DIMESION_TEMPLATE = """
     <path d="PATH_DATA" />
     <path d="TICK_LEFT" transform="rotate(TICK_ROTATION_LEFT)" />
     <path d="TICK_RIGHT" transform="rotate(TICK_ROTATION_RIGHT)" />
+    TEXT_ELEMENT
 </g>
 """
 
+TEXT_TEMPLATE = """
+<text
+        x="TEXT_POSITION_X"
+        y="TEXT_POSITION_Y"
+        style="font-size:TEXT_FONT_SIZE;font-family:Arial;letter-spacing:0px;word-spacing:0px;fill:#000000;text-anchor:middle;text-align:center;stroke:none;"
+        transform="rotate(TEXT_ROTATION)">
+            TEXT_CONTENT
+</text>
+"""
 
-def calculateTickAngle(start, end):
+
+def calculateDimensionAngle(start, end):
     direction = start.sub(end).normalize()
     xAxis = FreeCAD.Vector(1, 0, 0)
 
     angleInRad = math.acos(direction.dot(xAxis))
+    angle = math.degrees(angleInRad)
 
-    return math.degrees(angleInRad)
+    if angle > 90:
+        while angle >= 90:
+            angle -= 90
+
+    return angle
+
+
+def getDimensionTextSvg(d, start, end, angle):
+    text = toNumberString(d.Distance.Value / 10, d.ViewObject.Decimals)
+    tpos = d.ViewObject.Proxy.tbase
+    midpoint = start.add(end).multiply(0.5)
+
+    tx = toNumberString(tpos.x)
+    ty = toNumberString(-tpos.y)
+
+    textSvg = TEXT_TEMPLATE.replace("TEXT_CONTENT", text)
+    textSvg = textSvg.replace("TEXT_POSITION_X", tx)
+    textSvg = textSvg.replace("TEXT_POSITION_Y", ty)
+    textSvg = textSvg.replace("TEXT_ROTATION", '%s %s %s' % (angle, tx, ty))
+
+    return textSvg
+
+
+def getDimensionSvg(d):
+    start = d.ViewObject.Proxy.p2
+    end = d.ViewObject.Proxy.p3
+
+    startx = toNumberString(start.x)
+    starty = toNumberString(-start.y)
+    endx = toNumberString(end.x)
+    endy = toNumberString(-end.y)
+
+    path = "M %s %s L %s %s" % (startx, starty, endx, endy)
+    tickLeft = "M %s %s L %s %s" % (
+        startx, toNumberString(-start.y - 50), startx, toNumberString(-start.y + 50))
+    tickRight = "M %s %s L %s %s" % (
+        endx, toNumberString(-end.y - 50), endx, toNumberString(-end.y + 50))
+
+    angle = calculateDimensionAngle(start, end)
+
+    dimensionSvg = DIMESION_TEMPLATE.replace("PATH_DATA", path)
+    dimensionSvg = dimensionSvg.replace("TICK_LEFT", tickLeft)
+    dimensionSvg = dimensionSvg.replace("TICK_RIGHT", tickRight)
+    dimensionSvg = dimensionSvg.replace(
+        "TICK_ROTATION_LEFT", '%s %s %s' % (angle, startx, starty))
+    dimensionSvg = dimensionSvg.replace(
+        "TICK_ROTATION_RIGHT", '%s %s %s' % (angle, endx, endy))
+    dimensionSvg = dimensionSvg.replace(
+        "TEXT_ELEMENT", getDimensionTextSvg(d, start, end, angle))
+
+    return dimensionSvg
 
 
 def getDraftSvg(objects):
     svg = ""
 
     for d in objects:
-        start = d.ViewObject.Proxy.p2
-        end = d.ViewObject.Proxy.p3
+        objectType = Draft.getType(d)
 
-        startx = toNumberString(start.x)
-        starty = toNumberString(-start.y)
-        endx = toNumberString(end.x)
-        endy = toNumberString(-end.y)
-
-        path = "M %s %s L %s %s" % (startx, starty, endx, endy)
-        tickLeft = "M %s %s L %s %s" % (
-            startx, toNumberString(-start.y - 50), startx, toNumberString(-start.y + 50))
-        tickRight = "M %s %s L %s %s" % (
-            endx, toNumberString(-end.y - 50), endx, toNumberString(-end.y + 50))
-
-        tickAngle = calculateTickAngle(start, end)
-
-        dimensionSvg = DIMESION_TEMPLATE.replace("PATH_DATA", path)
-        dimensionSvg = dimensionSvg.replace("TICK_LEFT", tickLeft)
-        dimensionSvg = dimensionSvg.replace("TICK_RIGHT", tickRight)
-        dimensionSvg = dimensionSvg.replace(
-            "TICK_ROTATION_LEFT", '%s %s %s' % (tickAngle, startx, starty))
-        dimensionSvg = dimensionSvg.replace(
-            "TICK_ROTATION_RIGHT", '%s %s %s' % (tickAngle, endx, endy))
-
-        svg += dimensionSvg
+        if objectType == "Dimension":
+            svg += getDimensionSvg(d)
+        else:
+            print("Unsupported object type " + objectType)
 
     return svg
 
@@ -218,15 +261,16 @@ def getDraftSvg(objects):
 class SimpleSectionPlane:
     def __init__(self, obj):
         obj.Proxy = self
-        self.sectionSVG = ''
-        self.windowSVG = ''
-        self.draftSvg = ''
 
         self.setupProperties(obj)
 
     def setupProperties(self, obj):
         pl = obj.PropertiesList
         self.Object = obj
+
+        self.sectionSVG = ''
+        self.windowSVG = ''
+        self.draftSvg = ''
 
         if not "Placement" in pl:
             obj.addProperty("App::PropertyPlacement", "Placement", "SectionPlane", QT_TRANSLATE_NOOP(
@@ -259,7 +303,7 @@ class SimpleSectionPlane:
         self.Type = "SimpleSectionPlane"
 
     def onDocumentRestored(self, obj):
-        self.setProperties(obj)
+        self.setupProperties(obj)
 
     def __getstate__(self):
         return None
@@ -381,6 +425,7 @@ class SimpleSectionPlane:
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
         template = template.replace("DRAFT_SVG", self.draftSvg)
+        template = template.replace("TEXT_FONT_SIZE", str(240))
         template = template.replace(
             "DIMENSION_STROKE_WIDTH", toNumberString(0.5 / scale))
         template = template.replace(
