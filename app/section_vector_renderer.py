@@ -29,8 +29,16 @@ PATH_TEMPLATE = """
 """
 
 
-def toNumberString(val):
-    return str(round(val, DraftVecUtils.precision()))
+def toNumberString(val, precision=None):
+    if precision is None:
+        precision = DraftVecUtils.precision()
+
+    rounded = round(val, precision)
+
+    if precision == 0:
+        rounded = int(rounded)
+
+    return str(rounded)
 
 
 class Renderer:
