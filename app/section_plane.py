@@ -135,6 +135,22 @@ class BoundBox():
 
                 self.update(bb.XMin, bb.YMin, bb.XMax, bb.YMax)
 
+    def adaptFromDrafts(self, objects):
+        for o in objects:
+            objectType = Draft.getType(o)
+            if objectType == "Dimension":
+                start = o.ViewObject.Proxy.p2
+                end = o.ViewObject.Proxy.p3
+
+                minx = min(start.x, end.x)
+                maxx = max(start.x, end.x)
+                miny = min(start.y, end.y)
+                maxy = max(start.y, end.y)
+
+                self.update(minx, miny, maxx, maxy)
+            else:
+                print("Unkown object type " + objectType)
+
     def update(self, minx, miny, maxx, maxy):
         if not self.initialized:
             self.minx = minx
@@ -268,6 +284,7 @@ class SimpleSectionPlane:
         pl = obj.PropertiesList
         self.Object = obj
 
+        self.patternSVG = ''
         self.sectionSVG = ''
         self.windowSVG = ''
         self.draftSvg = ''
@@ -337,11 +354,14 @@ class SimpleSectionPlane:
         self.boundBox = BoundBox()
 
         self.boundBox.adaptFromShapes(groups["objects"])
-        # self.boundBox.adaptFromShapes(groups["drafts"])
+        self.boundBox.adaptFromDrafts(groups["drafts"])
 
     def buildSvgParts(self, obj, render, groups):
-        self.sectionSVG = render.getSectionSVG(linewidth=25)
-        self.windowSVG = render.getWindowSVG(linewidth=5)
+        parts = render.getSvgParts()
+
+        self.sectionSVG = parts["sections"]
+        self.windowSVG = parts["windows"]
+        self.patternSVG = parts["patterns"]
         self.draftSvg = getDraftSvg(groups["drafts"])
 
     def render(self, obj, groups, cutplane):
@@ -403,6 +423,10 @@ class SimpleSectionPlane:
         id="layer1">
 
         <g i="everything">
+            <g id="patterns">
+                PATTERN_SVG
+            </g>
+
             <g id="sections">
                 SECTION_SVG
             </g>
@@ -422,12 +446,17 @@ class SimpleSectionPlane:
             "WIDTH", toNumberString(width))
         template = template.replace(
             "HEIGHT", toNumberString(height))
+        template = template.replace("PATTERN_SVG", self.patternSVG)
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
         template = template.replace("DRAFT_SVG", self.draftSvg)
         template = template.replace("TEXT_FONT_SIZE", str(240))
         template = template.replace(
             "DIMENSION_STROKE_WIDTH", toNumberString(0.5 / scale))
+        template = template.replace(
+            "SECTION_STROKE_WIDTH", toNumberString(0.5 / scale))
+        template = template.replace(
+            "WINDOW_STROKE_WIDTH", toNumberString(0.1 / scale))
         template = template.replace(
             "VIEWBOX_VALUES", self.boundBox.buildViewbox(scale, width, height))
 

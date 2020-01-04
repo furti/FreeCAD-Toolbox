@@ -18,7 +18,8 @@ PATTERN_TEMPLATE = """
         <g>
             <rect width="100" height="100"
                 style="stroke:none; fill:#ffffff" />
-                <path style="stroke:PATTERN_COLOR; stroke-width:5" d="M0,0 l100,100" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:5; stroke-linecap:butt; stroke-linejoin:miter; fill:none;" 
+                  d="M0,0 l100,100" />
         </g>
 </pattern>
 """
@@ -65,6 +66,7 @@ class Renderer:
         self.sorted = False
         self.iscut = False
         self.joined = False
+        self.secondaryFaces = []
         self.sections = []
         self.windows = []
         self.hiddenEdges = []
@@ -97,6 +99,9 @@ class Renderer:
     def reorient(self):
         "reorients the faces on the WP"
 
+        if self.secondaryFaces:
+            self.secondaryFaces = [self.projectFace(
+                f) for f in self.secondaryFaces]
         if self.sections:
             self.sections = [self.projectFace(f) for f in self.sections]
         if self.windows:
@@ -153,6 +158,7 @@ class Renderer:
     def doCut(self, cutplane, hidden, shapes):
         objectShapes = []
         sections = []
+        faces = []
 
         shps = []
 
@@ -171,14 +177,15 @@ class Renderer:
 
                     for f in c.Faces:
                         if DraftGeomUtils.isCoplanar([f, cutface]):
-                            print("COPLANAR")
                             sections.append([f, sh[1]])
+                        else:
+                            faces.append([f, sh[1]])
 
                     if hidden:
                         c = sol.cut(invcutvolume)
                         self.hiddenEdges.extend(c.Edges)
 
-        return (objectShapes, sections)
+        return (objectShapes, sections, faces)
 
     def cut(self, cutplane, hidden=False):
         "Cuts through the objectShapes with a given cut plane and builds section faces"
@@ -192,11 +199,12 @@ class Renderer:
             if DEBUG:
                 print("No objects to make sections")
         else:
-            objectShapes, sections = self.doCut(
+            objectShapes, sections, faces = self.doCut(
                 cutplane, hidden, self.objectShapes)
 
             self.objectShapes = objectShapes
             self.sections = sections
+            self.secondaryFaces = faces
 
             if DEBUG:
                 print("Built ", len(self.sections), " sections, ")
@@ -205,7 +213,7 @@ class Renderer:
             if DEBUG:
                 print("No objects to make sections")
         else:
-            windowShapes, windows = self.doCut(
+            windowShapes, windows, faces = self.doCut(
                 cutplane, hidden, self.windowShapes)
 
             self.windowShapes = windowShapes
@@ -283,13 +291,7 @@ class Renderer:
 
         return patternsvg
 
-    def getSectionSVG(self, linewidth=0.5):
-        "Returns a SVG fragment from cut faces"
-        if not self.oriented:
-            self.reorient()
-
-        self.patterns = {}
-
+    def getSectionSVG(self, linewidth):
         sectionsvg = ''
 
         for f in self.sections:
@@ -307,15 +309,9 @@ class Renderer:
 
                 sectionsvg += current + "\n"
 
-        return self.getPatternSVG() + sectionsvg
+        return sectionsvg
 
-    def getWindowSVG(self, linewidth=0.2):
-        "Returns a SVG fragment from cut faces"
-        if not self.oriented:
-            self.reorient()
-
-        self.patterns = {}
-
+    def getWindowSVG(self, linewidth):
         windowsvg = ''
 
         for f in self.windows:
@@ -333,21 +329,38 @@ class Renderer:
 
                 windowsvg += current + "\n"
 
-        return self.getPatternSVG() + windowsvg
+        return windowsvg
 
-    def getHiddenSVG(self, linewidth=0.02):
-        "Returns a SVG fragment from cut geometry"
-        if DEBUG:
-            print("Printing ", len(self.sections), " hidden faces")
+    def getSvgParts(self):
+        "Returns all svg parts we cut"
         if not self.oriented:
             self.reorient()
-        svg = '<g stroke="#000000" stroke-width="' + \
-            str(linewidth) + '" style="stroke-width:' + str(linewidth)
-        svg += ';stroke-miterlimit:1;stroke-linejoin:round;stroke-dasharray:0.09,0.05;fill:none;">\n'
-        for e in self.hiddenEdges:
-            svg += '<path '
-            svg += 'd="'
-            svg += self.getPathData(e)
-            svg += '"/>\n'
-        svg += '</g>\n'
-        return svg
+
+        self.patterns = {}
+
+        sectionSvg = self.getSectionSVG('SECTION_STROKE_WIDTH')
+        windowSvg = self.getWindowSVG('WINDOW_STROKE_WIDTH')
+        patternSvg = self.getPatternSVG()
+
+        return {
+            "patterns": patternSvg,
+            "sections": sectionSvg,
+            "windows": windowSvg
+        }
+
+    # def getHiddenSVG(self, linewidth=0.02):
+    #     "Returns a SVG fragment from cut geometry"
+    #     if DEBUG:
+    #         print("Printing ", len(self.sections), " hidden faces")
+    #     if not self.oriented:
+    #         self.reorient()
+    #     svg = '<g stroke="#000000" stroke-width="' + \
+    #         str(linewidth) + '" style="stroke-width:' + str(linewidth)
+    #     svg += ';stroke-miterlimit:1;stroke-linejoin:round;stroke-dasharray:0.09,0.05;fill:none;">\n'
+    #     for e in self.hiddenEdges:
+    #         svg += '<path '
+    #         svg += 'd="'
+    #         svg += self.getPathData(e)
+    #         svg += '"/>\n'
+    #     svg += '</g>\n'
+    #     return svg
