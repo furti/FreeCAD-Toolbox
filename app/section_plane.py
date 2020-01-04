@@ -358,16 +358,18 @@ class SimpleSectionPlane:
         inkscape:groupmode="layer"
         id="layer1">
 
-        <g id="sections">
-            SECTION_SVG
-        </g>
+        <g i="everything">
+            <g id="sections">
+                SECTION_SVG
+            </g>
 
-        <g id="windows">
-            WINDOW_SVG
-        </g>
+            <g id="windows">
+                WINDOW_SVG
+            </g>
 
-        <g id="drafts">
-            DRAFT_SVG
+            <g id="drafts">
+                DRAFT_SVG
+            </g>
         </g>
     </g>
 </svg>
