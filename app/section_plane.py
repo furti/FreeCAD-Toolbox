@@ -1,6 +1,9 @@
 import FreeCAD
 import Draft
+import math
+
 import app.section_vector_renderer as section_vector_renderer
+from app.section_vector_renderer import toNumberString
 
 from FreeCAD import Vector
 
@@ -123,7 +126,7 @@ class BoundBox():
         x -= (scaledWidth - self.overallWidth()) / 2
         y -= (scaledHeight - self.overallHeight()) / 2
 
-        return '%s %s %s %s' % (section_vector_renderer.toNumberString(x), section_vector_renderer.toNumberString(y), section_vector_renderer.toNumberString(scaledWidth), section_vector_renderer.toNumberString(scaledHeight))
+        return '%s %s %s %s' % (toNumberString(x), toNumberString(y), toNumberString(scaledWidth), toNumberString(scaledHeight))
 
     def adaptFromShapes(self, objects):
         for o in objects:
@@ -159,11 +162,65 @@ class BoundBox():
         return self.maxy - self.miny
 
 
+DIMESION_TEMPLATE = """
+<g stroke-width="DIMENSION_STROKE_WIDTH"
+   style="stroke-width:DIMENSION_STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:none;"
+   stroke="#000000">
+    <path d="PATH_DATA" />
+    <path d="TICK_LEFT" transform="rotate(TICK_ROTATION_LEFT)" />
+    <path d="TICK_RIGHT" transform="rotate(TICK_ROTATION_RIGHT)" />
+</g>
+"""
+
+
+def calculateTickAngle(start, end):
+    direction = start.sub(end).normalize()
+    xAxis = FreeCAD.Vector(1, 0, 0)
+
+    angleInRad = math.acos(direction.dot(xAxis))
+
+    return math.degrees(angleInRad)
+
+
+def getDraftSvg(objects):
+    svg = ""
+
+    for d in objects:
+        start = d.ViewObject.Proxy.p2
+        end = d.ViewObject.Proxy.p3
+
+        startx = toNumberString(start.x)
+        starty = toNumberString(-start.y)
+        endx = toNumberString(end.x)
+        endy = toNumberString(-end.y)
+
+        path = "M %s %s L %s %s" % (startx, starty, endx, endy)
+        tickLeft = "M %s %s L %s %s" % (
+            startx, toNumberString(-start.y - 50), startx, toNumberString(-start.y + 50))
+        tickRight = "M %s %s L %s %s" % (
+            endx, toNumberString(-end.y - 50), endx, toNumberString(-end.y + 50))
+
+        tickAngle = calculateTickAngle(start, end)
+
+        dimensionSvg = DIMESION_TEMPLATE.replace("PATH_DATA", path)
+        dimensionSvg = dimensionSvg.replace("TICK_LEFT", tickLeft)
+        dimensionSvg = dimensionSvg.replace("TICK_RIGHT", tickRight)
+        dimensionSvg = dimensionSvg.replace(
+            "TICK_ROTATION_LEFT", '%s %s %s' % (tickAngle, startx, starty))
+        dimensionSvg = dimensionSvg.replace(
+            "TICK_ROTATION_RIGHT", '%s %s %s' % (tickAngle, endx, endy))
+
+        svg += dimensionSvg
+
+    return svg
+
+
 class SimpleSectionPlane:
     def __init__(self, obj):
         obj.Proxy = self
         self.sectionSVG = ''
         self.windowSVG = ''
+        self.draftSvg = ''
 
         self.setupProperties(obj)
 
@@ -228,7 +285,8 @@ class SimpleSectionPlane:
         groups = groupObjects(objectsToProcess, cutplane)
         render = self.render(obj, groups, cutplane)
 
-        self.buildSectionsSvg(obj, render)
+        self.buildSvgParts(obj, render, groups)
+        self.drafts = groups["drafts"]
         self.buildBoundBox(obj, groups)
 
     def buildBoundBox(self, obj, groups):
@@ -237,9 +295,10 @@ class SimpleSectionPlane:
         self.boundBox.adaptFromShapes(groups["objects"])
         # self.boundBox.adaptFromShapes(groups["drafts"])
 
-    def buildSectionsSvg(self, obj, render):
+    def buildSvgParts(self, obj, render, groups):
         self.sectionSVG = render.getSectionSVG(linewidth=25)
         self.windowSVG = render.getWindowSVG(linewidth=5)
+        self.draftSvg = getDraftSvg(groups["drafts"])
 
     def render(self, obj, groups, cutplane):
         render = section_vector_renderer.Renderer(obj.Placement)
@@ -298,19 +357,30 @@ class SimpleSectionPlane:
         inkscape:label="Layer 1"
         inkscape:groupmode="layer"
         id="layer1">
-        
-        SECTION_SVG
-        WINDOW_SVG
+
+        <g id="sections">
+            SECTION_SVG
+        </g>
+
+        <g id="windows">
+            WINDOW_SVG
+        </g>
+
+        <g id="drafts">
+            DRAFT_SVG
+        </g>
     </g>
 </svg>
 """
         template = template.replace(
-            "WIDTH", section_vector_renderer.toNumberString(width))
+            "WIDTH", toNumberString(width))
         template = template.replace(
-            "HEIGHT", section_vector_renderer.toNumberString(height))
+            "HEIGHT", toNumberString(height))
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
-        # template = template.replace("SCALE_VALUE", str(scale))
+        template = template.replace("DRAFT_SVG", self.draftSvg)
+        template = template.replace(
+            "DIMENSION_STROKE_WIDTH", toNumberString(0.5 / scale))
         template = template.replace(
             "VIEWBOX_VALUES", self.boundBox.buildViewbox(scale, width, height))
 
@@ -335,7 +405,7 @@ if __name__ == "__main__":
 
         FreeCAD.ActiveDocument.recompute()
 
-        svg = simpleSectionPlaneObject.Proxy.getSvg(scale=0.1)
+        svg = simpleSectionPlaneObject.Proxy.getSvg(scale=0.02)
 
         file_object = open(
             "C:\\Meine Daten\\freecad\\samples\\SectionPlane\\Export.svg", "w")
