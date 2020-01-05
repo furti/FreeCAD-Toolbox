@@ -286,6 +286,7 @@ class SimpleSectionPlane:
 
         self.patternSVG = ''
         self.sectionSVG = ''
+        self.secondaryFacesSVG = ''
         self.windowSVG = ''
         self.draftSvg = ''
 
@@ -360,6 +361,7 @@ class SimpleSectionPlane:
         parts = render.getSvgParts()
 
         self.sectionSVG = parts["sections"]
+        self.secondaryFacesSVG = parts["secondaryFaces"]
         self.windowSVG = parts["windows"]
         self.patternSVG = parts["patterns"]
         self.draftSvg = getDraftSvg(groups["drafts"])
@@ -427,6 +429,10 @@ class SimpleSectionPlane:
                 PATTERN_SVG
             </g>
 
+            <g id="secondary">
+                SECONDARY_SVG
+            </g>
+
             <g id="sections">
                 SECTION_SVG
             </g>
@@ -447,6 +453,7 @@ class SimpleSectionPlane:
         template = template.replace(
             "HEIGHT", toNumberString(height))
         template = template.replace("PATTERN_SVG", self.patternSVG)
+        template = template.replace("SECONDARY_SVG", self.secondaryFacesSVG)
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
         template = template.replace("DRAFT_SVG", self.draftSvg)
@@ -457,6 +464,8 @@ class SimpleSectionPlane:
             "SECTION_STROKE_WIDTH", toNumberString(0.5 / scale))
         template = template.replace(
             "WINDOW_STROKE_WIDTH", toNumberString(0.1 / scale))
+        template = template.replace(
+            "SECONDARY_STROKE_WIDTH", toNumberString(0.1 / scale))
         template = template.replace(
             "VIEWBOX_VALUES", self.boundBox.buildViewbox(scale, width, height))
 

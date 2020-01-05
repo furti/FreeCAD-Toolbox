@@ -14,12 +14,12 @@ PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    x="0" y="0" width="100" height="100">
+    x="0" y="0" width="200" height="200">
         <g>
-            <rect width="100" height="100"
+            <rect width="200" height="200"
                 style="stroke:none; fill:#ffffff" />
-            <path style="stroke:PATTERN_COLOR; stroke-width:5; stroke-linecap:butt; stroke-linejoin:miter; fill:none;" 
-                  d="M0,0 l100,100" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M0,0 l200,200" />
         </g>
 </pattern>
 """
@@ -74,11 +74,18 @@ class Renderer:
     def addObjects(self, objs):
         "add objects to this renderer"
 
+        def sortZ(entry):
+            shape = entry[0]
+
+            return shape.BoundBox.ZMax
+
         for o in objs:
             if o.isDerivedFrom("Part::Feature"):
                 color = o.ViewObject.ShapeColor
                 if o.Shape.Faces:
                     self.objectShapes.append([o.Shape, color])
+
+        self.objectShapes.sort(key=sortZ)
 
         self.resetFlags()
 
@@ -239,13 +246,14 @@ class Renderer:
 
         return "#" + r + g + b
 
-    def getPattern(self, color):
+    def getPattern(self, color, opacity=1):
         fill = self.getFill(color)
-        pattern_id = "stripes-" + fill.replace("#", "")
+        pattern_id = "stripes-%s-%s" % (fill.replace("#", ""), str(opacity))
 
         if not pattern_id in self.patterns:
             pattern = PATTERN_TEMPLATE.replace("PATTERN_ID", pattern_id)
             pattern = pattern.replace("PATTERN_COLOR", fill)
+            pattern = pattern.replace("PATTERN_OPACITY", str(opacity))
 
             self.patterns[pattern_id] = pattern
 
@@ -331,6 +339,26 @@ class Renderer:
 
         return windowsvg
 
+    def getSecondaryFacesSVG(self, linewidth):
+        secondaryFacesSvg = ''
+
+        for f in self.secondaryFaces:
+            if f:
+                fill = 'url(#' + self.getPattern(f[1], 0.3) + ')'
+
+                pathdata = ''
+
+                for w in f[0].Wires:
+                    pathdata += self.getPathData(w)
+
+                current = PATH_TEMPLATE.replace("PATH_FILL", fill)
+                current = current.replace("STROKE_WIDTH", str(linewidth))
+                current = current.replace("PATH_DATA", pathdata)
+
+                secondaryFacesSvg += current + "\n"
+
+        return secondaryFacesSvg
+
     def getSvgParts(self):
         "Returns all svg parts we cut"
         if not self.oriented:
@@ -338,13 +366,15 @@ class Renderer:
 
         self.patterns = {}
 
-        sectionSvg = self.getSectionSVG('SECTION_STROKE_WIDTH')
-        windowSvg = self.getWindowSVG('WINDOW_STROKE_WIDTH')
+        sectionSvg = self.getSectionSVG("SECTION_STROKE_WIDTH")
+        windowSvg = self.getWindowSVG("WINDOW_STROKE_WIDTH")
+        secondaryFacesSvg = self.getSecondaryFacesSVG("SECONDARY_STROKE_WIDTH")
         patternSvg = self.getPatternSVG()
 
         return {
             "patterns": patternSvg,
             "sections": sectionSvg,
+            "secondaryFaces": secondaryFacesSvg,
             "windows": windowSvg
         }
 
