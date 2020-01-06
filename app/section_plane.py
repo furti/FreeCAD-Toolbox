@@ -114,8 +114,7 @@ class BoundBox():
         self.maxx = 0
         self.maxy = 0
 
-    def buildViewbox(self, scale, width, height):
-        print((self.minx, self.miny, self.maxx, self.maxy))
+    def calculateOffset(self, scale, width, height):
         scaledWidth = width / scale
         scaledHeight = height / scale
 
@@ -125,6 +124,12 @@ class BoundBox():
 
         x -= (scaledWidth - self.overallWidth()) / 2
         y -= (scaledHeight - self.overallHeight()) / 2
+
+        return (scaledWidth, scaledHeight, x, y)
+
+    def buildViewbox(self, scale, width, height):
+        scaledWidth, scaledHeight, x, y = self.calculateOffset(
+            scale, width, height)
 
         return '%s %s %s %s' % (toNumberString(x), toNumberString(y), toNumberString(scaledWidth), toNumberString(scaledHeight))
 
@@ -399,6 +404,38 @@ class SimpleSectionPlane:
 
         return p
 
+    def renderInformation(self, width, height, scale):
+        label = self.Object.Label
+        scaleText = "1:%s" % (toNumberString(1/scale, 0),)
+        fontSize = toNumberString(10/scale)
+
+        scaledWidth, scaleHeight, x, y = self.boundBox.calculateOffset(
+            scale, width, height)
+
+        pageEndX = toNumberString(scaledWidth + x - 5 / scale)
+
+        labelSvg = TEXT_TEMPLATE.replace("TEXT_CONTENT", label)
+        labelSvg = labelSvg.replace(
+            "TEXT_POSITION_X", pageEndX)
+        labelSvg = labelSvg.replace(
+            "TEXT_POSITION_Y", toNumberString(y + 10 / scale))
+        labelSvg = labelSvg.replace("TEXT_ROTATION", "0")
+        labelSvg = labelSvg.replace("TEXT_FONT_SIZE", fontSize)
+        labelSvg = labelSvg.replace("text-anchor:middle", "text-anchor:end")
+        labelSvg = labelSvg.replace("text-align:center", "text-align:end")
+
+        scaleSvg = TEXT_TEMPLATE.replace("TEXT_CONTENT", scaleText)
+        scaleSvg = scaleSvg.replace(
+            "TEXT_POSITION_X", pageEndX)
+        scaleSvg = scaleSvg.replace(
+            "TEXT_POSITION_Y", toNumberString(y + 20 / scale))
+        scaleSvg = scaleSvg.replace("TEXT_ROTATION", "0")
+        scaleSvg = scaleSvg.replace("TEXT_FONT_SIZE", fontSize)
+        scaleSvg = scaleSvg.replace("text-anchor:middle", "text-anchor:end")
+        scaleSvg = scaleSvg.replace("text-align:center", "text-align:end")
+
+        return "%s\n%s" % (labelSvg, scaleSvg)
+
     def getSvg(self, width=420, height=297, scale=1/50):
         if not self.sectionSVG:
             self.doExecute(self.Object)
@@ -444,6 +481,10 @@ class SimpleSectionPlane:
             <g id="drafts">
                 DRAFT_SVG
             </g>
+
+            <g id="information">
+                INFORMATION_SVG
+            </g>
         </g>
     </g>
 </svg>
@@ -457,6 +498,8 @@ class SimpleSectionPlane:
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
         template = template.replace("DRAFT_SVG", self.draftSvg)
+        template = template.replace(
+            "INFORMATION_SVG", self.renderInformation(width, height, scale))
         template = template.replace("TEXT_FONT_SIZE", str(240))
         template = template.replace(
             "DIMENSION_STROKE_WIDTH", toNumberString(0.5 / scale))
