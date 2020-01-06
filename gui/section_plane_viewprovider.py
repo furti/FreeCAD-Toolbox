@@ -50,10 +50,12 @@ class ViewProviderSimpleSectionPlane():
         p4 = pl.multVec(FreeCAD.Vector(-plane_length, plane_length, 0))
 
         verts = []
-        verts.append([p1.x, p1.y, p1.z])
-        verts.append([p2.x, p2.y, p2.z])
-        verts.append([p3.x, p3.y, p3.z])
-        verts.append([p4.x, p4.y, p4.z])
+        verts.append([p1.x, p1.y, 0])
+        verts.append([p2.x, p2.y, 0])
+        verts.append([p3.x, p3.y, 0])
+        verts.append([p4.x, p4.y, 0])
+
+        print(verts)
 
         self.plane_coords.point.setValues(verts)
 
