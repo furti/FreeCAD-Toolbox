@@ -43,19 +43,17 @@ class ViewProviderSimpleSectionPlane():
     def updatePlaneCoordinates(self, vobj):
         plane_length = 100000
 
-        pl = FreeCAD.Placement(vobj.Object.Placement)
-        p1 = pl.multVec(FreeCAD.Vector(-plane_length, -plane_length, 0))
-        p2 = pl.multVec(FreeCAD.Vector(plane_length, -plane_length, 0))
-        p3 = pl.multVec(FreeCAD.Vector(plane_length, plane_length, 0))
-        p4 = pl.multVec(FreeCAD.Vector(-plane_length, plane_length, 0))
+        r = vobj.Object.Placement
+        p1 = FreeCAD.Vector(-plane_length, -plane_length, 0)
+        p2 = FreeCAD.Vector(plane_length, -plane_length, 0)
+        p3 = FreeCAD.Vector(plane_length, plane_length, 0)
+        p4 = FreeCAD.Vector(-plane_length, plane_length, 0)
 
         verts = []
         verts.append([p1.x, p1.y, 0])
         verts.append([p2.x, p2.y, 0])
         verts.append([p3.x, p3.y, 0])
         verts.append([p4.x, p4.y, 0])
-
-        print(verts)
 
         self.plane_coords.point.setValues(verts)
 
