@@ -382,8 +382,8 @@ class SimpleSectionPlane:
     def calculateCutPlane(self, obj):
         import Part
 
-        l = 1
-        h = 1
+        l = 10000
+        h = 10000
 
         if obj.ViewObject:
             if hasattr(obj.ViewObject, "DisplayLength"):
@@ -524,12 +524,18 @@ if __name__ == "__main__":
         SimpleSectionPlane(simpleSectionPlaneObject)
 
         # simpleSectionPlaneObject.IncludeObjects = [
+        #     FreeCAD.ActiveDocument.Wall]
+        # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall003]
         simpleSectionPlaneObject.IncludeObjects = [
             FreeCAD.ActiveDocument.BuildingPart]
+        # simpleSectionPlaneObject.IncludeObjects = [
+        #     FreeCAD.ActiveDocument.BuildingPart001]
 
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
+        simpleSectionPlaneObject.Placement = FreeCAD.Placement(
+            Vector(0, -1000, 0), FreeCAD.Rotation(Vector(1, 0, 0), 90))
 
         FreeCAD.ActiveDocument.recompute()
 

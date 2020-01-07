@@ -74,18 +74,11 @@ class Renderer:
     def addObjects(self, objs):
         "add objects to this renderer"
 
-        def sortZ(entry):
-            shape = entry[0]
-
-            return shape.BoundBox.ZMax
-
         for o in objs:
             if o.isDerivedFrom("Part::Feature"):
                 color = o.ViewObject.ShapeColor
                 if o.Shape.Faces:
                     self.objectShapes.append([o.Shape, color])
-
-        self.objectShapes.sort(key=sortZ)
 
         self.resetFlags()
 
@@ -117,6 +110,47 @@ class Renderer:
             self.hiddenEdges = [self.projectEdge(e) for e in self.hiddenEdges]
 
         self.oriented = True
+
+    def sort(self):
+        if self.secondaryFaces:
+            self.sortFaces(self.secondaryFaces)
+        if self.sections:
+            self.sortFaces(self.sections)
+        if self.windows:
+            self.sortFaces(self.windows)
+        if self.hiddenEdges:
+            self.sortFaces(self.hiddenEdges)
+
+    def sortFaces(self, faces):
+        def sortX(entry):
+            shape = entry[0]
+
+            return shape.BoundBox.XMax
+
+        def sortY(entry):
+            shape = entry[0]
+
+            return shape.BoundBox.YMax
+
+        def sortZ(entry):
+            shape = entry[0]
+
+            return shape.BoundBox.ZMax
+
+        normal = self.wp.getNormal()
+
+        if normal.z > 0:
+            faces.sort(key=sortZ)
+        elif normal.x > 0:
+            faces.sort(key=sortX)
+        elif normal.y > 0:
+            faces.sort(key=sortY)
+        elif normal.z < 0:
+            faces.sort(key=sortZ, reverse=True)
+        elif normal.x < 0:
+            faces.sort(key=sortX, reverse=True)
+        elif normal.y < 0:
+            faces.sort(key=sortY, reverse=True)
 
     def projectFace(self, face):
         "projects a single face on the WP"
@@ -175,6 +209,17 @@ class Renderer:
         cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
             cutplane, shps)
 
+        if not cutvolume:
+            cutface = cutplane
+            cutnormal = cutplane.normalAt(0.5, 0.5)
+            cutvolume = cutplane.extrude(cutnormal)
+            cutnormal = cutnormal.negative()
+            invcutvolume = cutplane.extrude(cutnormal)
+
+        if DEBUG:
+            print('cutface: %s, cutvolume: %s, invcutvolume: %s' %
+                  (cutface, cutvolume, invcutvolume))
+
         if cutface and cutvolume:
 
             for sh in shapes:
@@ -214,11 +259,11 @@ class Renderer:
             self.secondaryFaces = faces
 
             if DEBUG:
-                print("Built ", len(self.sections), " sections, ")
+                print("Built ", len(self.sections), " sections")
 
         if not self.windowShapes:
             if DEBUG:
-                print("No objects to make sections")
+                print("No objects to make windows")
         else:
             windowShapes, windows, faces = self.doCut(
                 cutplane, hidden, self.windowShapes)
@@ -227,7 +272,9 @@ class Renderer:
             self.windows = windows
 
             if DEBUG:
-                print("Built ", len(self.sections), " sections, ")
+                print("Built ", len(self.sections), " windows")
+
+        self.sort()
 
         self.iscut = True
         self.oriented = False
@@ -394,3 +441,114 @@ class Renderer:
     #         svg += '"/>\n'
     #     svg += '</g>\n'
     #     return svg
+
+
+if __name__ == "__main__":
+    def calculateCutPlane(pl):
+        import Part
+
+        l = 10000
+        h = 10000
+
+        p = Part.makePlane(l, h, FreeCAD.Vector(
+            l/2, -h/2, 0), FreeCAD.Vector(0, 0, -1))
+
+        # make sure the normal direction is pointing outwards, you never know what OCC will decide...
+        if p.normalAt(0, 0).getAngle(pl.Rotation.multVec(FreeCAD.Vector(0, 0, 1))) > 1:
+            p.reverse()
+
+        p.Placement = pl
+
+        return p
+
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
+    cutplane = calculateCutPlane(pl)
+
+    DEBUG = True
+
+    render = Renderer(pl)
+    render.addObjects([FreeCAD.ActiveDocument.Wall])
+    render.cut(cutplane)
+
+    parts = render.getSvgParts()
+
+    # print("---patterns---")
+    # print(parts["patterns"])
+    # print("---sections---")
+    # print(parts["sections"])
+    # print("---windows---")
+    # print(parts["windows"])
+    # print("---secondaryFaces---")
+    # print(parts["secondaryFaces"])
+
+    template = """
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="WIDTHmm" height="HEIGHTmm"
+     version="1.1">
+    <sodipodi:namedview
+        id="base"
+        pagecolor="#ffffff"
+        bordercolor="#666666"
+        borderopacity="1.0"
+        inkscape:pageopacity="1"
+        inkscape:pageshadow="2"
+        inkscape:document-units="mm"
+        inkscape:window-maximized="1" />
+    <g
+        inkscape:label="Layer 1"
+        inkscape:groupmode="layer"
+        id="layer1">
+
+        <g i="everything">
+            <g id="patterns">
+                PATTERN_SVG
+            </g>
+
+            <g id="secondary">
+                SECONDARY_SVG
+            </g>
+
+            <g id="sections">
+                SECTION_SVG
+            </g>
+
+            <g id="windows">
+                WINDOW_SVG
+            </g>
+
+            <g id="drafts">
+                DRAFT_SVG
+            </g>
+
+            <g id="information">
+                INFORMATION_SVG
+            </g>
+        </g>
+    </g>
+</svg>
+"""
+
+    width = 420
+    height = 297
+
+    template = template.replace("WIDTH", toNumberString(width))
+    template = template.replace("HEIGHT", toNumberString(height))
+    template = template.replace("PATTERN_SVG", parts["patterns"])
+    template = template.replace("SECONDARY_SVG", parts["secondaryFaces"])
+    template = template.replace("SECTION_SVG", parts["sections"])
+    template = template.replace("WINDOW_SVG", parts["windows"])
+    template = template.replace("TEXT_FONT_SIZE", str(240))
+    template = template.replace("SECTION_STROKE_WIDTH", str(3))
+    template = template.replace("WINDOW_STROKE_WIDTH", str(1))
+    template = template.replace("SECONDARY_STROKE_WIDTH", str(1))
+
+    file_object = open(
+        "C:\\Meine Daten\\freecad\\samples\\SectionPlane\\Export.svg", "w")
+    file_object.write(template)
+    file_object.close()
