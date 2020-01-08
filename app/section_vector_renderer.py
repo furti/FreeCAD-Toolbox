@@ -42,6 +42,82 @@ def toNumberString(val, precision=None):
     return str(rounded)
 
 
+class BoundBox():
+    def __init__(self):
+        self.initialized = False
+        self.minx = 0
+        self.miny = 0
+        self.maxx = 0
+        self.maxy = 0
+
+    def calculateOffset(self, scale, width, height):
+        scaledWidth = width / scale
+        scaledHeight = height / scale
+
+        # So we are in the top left corner of the viewport
+        x = self.minx
+        y = -self.maxy
+
+        x -= (scaledWidth - self.overallWidth()) / 2
+        y -= (scaledHeight - self.overallHeight()) / 2
+
+        return (scaledWidth, scaledHeight, x, y)
+
+    def buildViewbox(self, scale, width, height):
+        scaledWidth, scaledHeight, x, y = self.calculateOffset(
+            scale, width, height)
+
+        return '%s %s %s %s' % (toNumberString(x), toNumberString(y), toNumberString(scaledWidth), toNumberString(scaledHeight))
+
+    def adaptFromShapes(self, objects):
+        for s in objects:
+            bb = s.BoundBox
+
+            self.update(bb.XMin, bb.YMin, bb.XMax, bb.YMax)
+
+    def adaptFromDrafts(self, objects):
+        for o in objects:
+            objectType = Draft.getType(o)
+            if objectType == "Dimension":
+                start = o.ViewObject.Proxy.p2
+                end = o.ViewObject.Proxy.p3
+
+                minx = min(start.x, end.x)
+                maxx = max(start.x, end.x)
+                miny = min(start.y, end.y)
+                maxy = max(start.y, end.y)
+
+                self.update(minx, miny, maxx, maxy)
+            else:
+                print("Unkown object type " + objectType)
+
+    def update(self, minx, miny, maxx, maxy):
+        if not self.initialized:
+            self.minx = minx
+            self.miny = miny
+            self.maxx = maxx
+            self.maxy = maxy
+
+            self.initialized = True
+
+            return
+
+        if minx < self.minx:
+            self.minx = minx
+        if miny < self.miny:
+            self.miny = miny
+        if maxx > self.maxx:
+            self.maxx = maxx
+        if maxy > self.maxy:
+            self.maxy = maxy
+
+    def overallWidth(self):
+        return self.maxx - self.minx
+
+    def overallHeight(self):
+        return self.maxy - self.miny
+
+
 class FaceData:
     def __init__(self, originalFace, color, reorientedFace=None):
         self.originalFace = originalFace
@@ -447,12 +523,33 @@ class Renderer:
             "SECONDARY_STROKE_WIDTH", faceHighlightDistance, "SECTION_STROKE_WIDTH")
         patternSvg = self.getPatternSVG()
 
+        boundBox = self.buildBoundBox()
+
         return {
             "patterns": patternSvg,
             "sections": sectionSvg,
             "secondaryFaces": secondaryFacesSvg,
-            "windows": windowSvg
+            "windows": windowSvg,
+            "boundBox": boundBox
         }
+
+    def buildBoundBox(self):
+        boundBox = BoundBox()
+
+        if self.secondaryFaces:
+            boundBox.adaptFromShapes(
+                [f.reorientedFace for f in self.secondaryFaces if f])
+        if self.sections:
+            boundBox.adaptFromShapes(
+                [f.reorientedFace for f in self.sections if f])
+        if self.windows:
+            boundBox.adaptFromShapes(
+                [f.reorientedFace for f in self.windows if f])
+        if self.hiddenEdges:
+            boundBox.adaptFromShapes(
+                [f.reorientedFace for f in self.hiddenEdges if f])
+
+        return boundBox
 
     # def getHiddenSVG(self, linewidth=0.02):
     #     "Returns a SVG fragment from cut geometry"
@@ -490,10 +587,10 @@ if __name__ == "__main__":
 
         return p
 
-    # pl = FreeCAD.Placement(
-    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
+        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
     cutplane = calculateCutPlane(pl)
 
     DEBUG = True
@@ -503,6 +600,9 @@ if __name__ == "__main__":
     render.cut(cutplane)
 
     parts = render.getSvgParts(0)
+
+    width = 420
+    height = 297
 
     # print("---patterns---")
     # print(parts["patterns"])
@@ -518,7 +618,7 @@ if __name__ == "__main__":
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
      xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-     width="WIDTHmm" height="HEIGHTmm"
+     width="WIDTHmm" height="HEIGHTmm" viewBox="VIEWBOX_VALUES"
      version="1.1">
     <sodipodi:namedview
         id="base"
@@ -563,9 +663,8 @@ if __name__ == "__main__":
 </svg>
 """
 
-    width = 420
-    height = 297
-
+    template = template.replace(
+        "VIEWBOX_VALUES", parts["boundBox"].buildViewbox(1, width, height))
     template = template.replace("WIDTH", toNumberString(width))
     template = template.replace("HEIGHT", toNumberString(height))
     template = template.replace("PATTERN_SVG", parts["patterns"])

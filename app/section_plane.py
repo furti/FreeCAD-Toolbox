@@ -106,83 +106,6 @@ def groupObjects(objectsToProcess, cutplane):
     return groups
 
 
-class BoundBox():
-    def __init__(self):
-        self.initialized = False
-        self.minx = 0
-        self.miny = 0
-        self.maxx = 0
-        self.maxy = 0
-
-    def calculateOffset(self, scale, width, height):
-        scaledWidth = width / scale
-        scaledHeight = height / scale
-
-        # So we are in the top left corner of the viewport
-        x = self.minx
-        y = -self.maxy
-
-        x -= (scaledWidth - self.overallWidth()) / 2
-        y -= (scaledHeight - self.overallHeight()) / 2
-
-        return (scaledWidth, scaledHeight, x, y)
-
-    def buildViewbox(self, scale, width, height):
-        scaledWidth, scaledHeight, x, y = self.calculateOffset(
-            scale, width, height)
-
-        return '%s %s %s %s' % (toNumberString(x), toNumberString(y), toNumberString(scaledWidth), toNumberString(scaledHeight))
-
-    def adaptFromShapes(self, objects):
-        for o in objects:
-            if hasattr(o, "Shape") and o.Shape:
-                bb = o.Shape.BoundBox
-
-                self.update(bb.XMin, bb.YMin, bb.XMax, bb.YMax)
-
-    def adaptFromDrafts(self, objects):
-        for o in objects:
-            objectType = Draft.getType(o)
-            if objectType == "Dimension":
-                start = o.ViewObject.Proxy.p2
-                end = o.ViewObject.Proxy.p3
-
-                minx = min(start.x, end.x)
-                maxx = max(start.x, end.x)
-                miny = min(start.y, end.y)
-                maxy = max(start.y, end.y)
-
-                self.update(minx, miny, maxx, maxy)
-            else:
-                print("Unkown object type " + objectType)
-
-    def update(self, minx, miny, maxx, maxy):
-        if not self.initialized:
-            self.minx = minx
-            self.miny = miny
-            self.maxx = maxx
-            self.maxy = maxy
-
-            self.initialized = True
-
-            return
-
-        if minx < self.minx:
-            self.minx = minx
-        if miny < self.miny:
-            self.miny = miny
-        if maxx > self.maxx:
-            self.maxx = maxx
-        if maxy > self.maxy:
-            self.maxy = maxy
-
-    def overallWidth(self):
-        return self.maxx - self.minx
-
-    def overallHeight(self):
-        return self.maxy - self.miny
-
-
 DIMESION_TEMPLATE = """
 <g stroke-width="DIMENSION_STROKE_WIDTH"
    style="stroke-width:DIMENSION_STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:none;"
@@ -358,13 +281,6 @@ class SimpleSectionPlane:
 
         self.buildSvgParts(obj, render, groups)
         self.drafts = groups["drafts"]
-        self.buildBoundBox(obj, groups)
-
-    def buildBoundBox(self, obj, groups):
-        self.boundBox = BoundBox()
-
-        self.boundBox.adaptFromShapes(groups["objects"])
-        self.boundBox.adaptFromDrafts(groups["drafts"])
 
     def buildSvgParts(self, obj, render, groups):
         faceHighlightDistance = obj.FaceHighlightDistance
@@ -376,6 +292,9 @@ class SimpleSectionPlane:
         self.windowSVG = parts["windows"]
         self.patternSVG = parts["patterns"]
         self.draftSvg = getDraftSvg(groups["drafts"])
+        self.boundBox = parts["boundBox"]
+
+        self.boundBox.adaptFromDrafts(groups["drafts"])
 
     def render(self, obj, groups, cutplane):
         render = section_vector_renderer.Renderer(obj.Placement)
@@ -529,7 +448,7 @@ if __name__ == "__main__":
             "App::FeaturePython", "SectionPlane")
         SimpleSectionPlane(simpleSectionPlaneObject)
 
-        simpleSectionPlaneObject.FaceHighlightDistance = 6600
+        # simpleSectionPlaneObject.FaceHighlightDistance = 6600
 
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall]
@@ -542,8 +461,8 @@ if __name__ == "__main__":
 
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
-        simpleSectionPlaneObject.Placement = FreeCAD.Placement(
-            Vector(0, -1000, 0), FreeCAD.Rotation(Vector(1, 0, 0), 90))
+        # simpleSectionPlaneObject.Placement = FreeCAD.Placement(
+        #     Vector(0, -1000, 0), FreeCAD.Rotation(Vector(1, 0, 0), 90))
 
         FreeCAD.ActiveDocument.recompute()
 
