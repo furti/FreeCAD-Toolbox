@@ -323,6 +323,10 @@ class SimpleSectionPlane:
             obj.addProperty("App::PropertyFloat", "Scale",
                             "SectionPlane", "Scale to apply to output svg").Scale = 1/50
 
+        if not "FaceHighlightDistance" in pl:
+            obj.addProperty("App::PropertyDistance", "FaceHighlightDistance",
+                            "SectionPlane", "When greater 0, all faces not farther away than this value will be secion faces, even if they are secondary faces.").FaceHighlightDistance = 0
+
         self.Type = "SimpleSectionPlane"
 
     def onDocumentRestored(self, obj):
@@ -363,7 +367,9 @@ class SimpleSectionPlane:
         self.boundBox.adaptFromDrafts(groups["drafts"])
 
     def buildSvgParts(self, obj, render, groups):
-        parts = render.getSvgParts()
+        faceHighlightDistance = obj.FaceHighlightDistance
+
+        parts = render.getSvgParts(faceHighlightDistance.Value)
 
         self.sectionSVG = parts["sections"]
         self.secondaryFacesSVG = parts["secondaryFaces"]
@@ -523,14 +529,16 @@ if __name__ == "__main__":
             "App::FeaturePython", "SectionPlane")
         SimpleSectionPlane(simpleSectionPlaneObject)
 
+        simpleSectionPlaneObject.FaceHighlightDistance = 6600
+
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall003]
-        simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.BuildingPart]
         # simpleSectionPlaneObject.IncludeObjects = [
-        #     FreeCAD.ActiveDocument.BuildingPart001]
+        #     FreeCAD.ActiveDocument.BuildingPart]
+        simpleSectionPlaneObject.IncludeObjects = [
+            FreeCAD.ActiveDocument.BuildingPart001]
 
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))

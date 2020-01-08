@@ -42,16 +42,24 @@ def toNumberString(val, precision=None):
     return str(rounded)
 
 
+class FaceData:
+    def __init__(self, originalFace, color, reorientedFace=None):
+        self.originalFace = originalFace
+        self.color = color
+        self.reorientedFace = reorientedFace
+
+
 class Renderer:
     def __init__(self, placement):
         import WorkingPlane
 
         self.reset()
         self.wp = WorkingPlane.plane()
-        self.wp.setFromPlacement(placement)
+        self.wp.setFromPlacement(placement, rebase=True)
 
         if DEBUG:
-            print("Renderer initialized on " + str(self.wp))
+            print("Renderer initialized on %s. %s, %s" %
+                  (self.wp, self.wp.getPlacement().Base, self.wp.getNormal()))
 
     def reset(self):
         "removes all faces from this renderer"
@@ -123,17 +131,17 @@ class Renderer:
 
     def sortFaces(self, faces):
         def sortX(entry):
-            shape = entry[0]
+            shape = entry.originalFace
 
             return shape.BoundBox.XMax
 
         def sortY(entry):
-            shape = entry[0]
+            shape = entry.originalFace
 
             return shape.BoundBox.YMax
 
         def sortZ(entry):
-            shape = entry[0]
+            shape = entry.originalFace
 
             return shape.BoundBox.ZMax
 
@@ -154,25 +162,22 @@ class Renderer:
 
     def projectFace(self, face):
         "projects a single face on the WP"
-        #print("VRM: projectFace start: ",len(face[0].Vertexes)," verts, ",len(face[0].Edges)," edges")
+
         wires = []
-        if not face[0].Wires:
+        if not face.originalFace.Wires:
             if DEBUG:
                 print("Error: Unable to project face on the WP")
             return None
-        norm = face[0].normalAt(0, 0)
-        for w in face[0].Wires:
+        norm = face.originalFace.normalAt(0, 0)
+        for w in face.originalFace.Wires:
             verts = []
             edges = Part.__sortEdges__(w.Edges)
-            #print(len(edges)," edges after sorting")
             for e in edges:
                 v = e.Vertexes[0].Point
-                # print(v)
                 v = self.wp.getLocalCoords(v)
                 verts.append(v)
             verts.append(verts[0])
             if len(verts) > 2:
-                #print("new wire with ",len(verts))
                 wires.append(Part.makePolygon(verts))
         try:
             sh = ArchCommands.makeFace(wires)
@@ -185,8 +190,8 @@ class Renderer:
             vnorm = self.wp.getLocalCoords(norm)
             if vnorm.getAngle(sh.normalAt(0, 0)) > 1:
                 sh.reverse()
-            #print("VRM: projectFace end: ",len(sh.Vertexes)," verts")
-            return [sh]+face[1:]
+
+            return FaceData(face.originalFace, face.color, sh)
 
     def projectEdge(self, edge):
         "projects a single edge on the WP"
@@ -229,9 +234,9 @@ class Renderer:
 
                     for f in c.Faces:
                         if DraftGeomUtils.isCoplanar([f, cutface]):
-                            sections.append([f, sh[1]])
+                            sections.append(FaceData(f, sh[1]))
                         else:
-                            faces.append([f, sh[1]])
+                            faces.append(FaceData(f, sh[1]))
 
                     if hidden:
                         c = sol.cut(invcutvolume)
@@ -351,11 +356,11 @@ class Renderer:
 
         for f in self.sections:
             if f:
-                fill = 'url(#' + self.getPattern(f[1]) + ')'
+                fill = 'url(#' + self.getPattern(f.color) + ')'
 
                 pathdata = ''
 
-                for w in f[0].Wires:
+                for w in f.reorientedFace.Wires:
                     pathdata += self.getPathData(w)
 
                 current = PATH_TEMPLATE.replace("PATH_FILL", fill)
@@ -371,11 +376,11 @@ class Renderer:
 
         for f in self.windows:
             if f:
-                fill = 'url(#' + self.getPattern(f[1]) + ')'
+                fill = 'url(#' + self.getPattern(f.color) + ')'
 
                 pathdata = ''
 
-                for w in f[0].Wires:
+                for w in f.reorientedFace.Wires:
                     pathdata += self.getPathData(w)
 
                 current = PATH_TEMPLATE.replace("PATH_FILL", fill)
@@ -386,16 +391,39 @@ class Renderer:
 
         return windowsvg
 
-    def getSecondaryFacesSVG(self, linewidth):
+    def shouldHightlight(self, face, faceHighlightDistance):
+        if faceHighlightDistance <= 0:
+            return False
+
+        distance = face.CenterOfMass.distanceToPlane(
+            self.wp.getPlacement().Base, self.wp.getNormal())
+
+        if distance < 0:
+            distance *= -1
+
+        if distance <= faceHighlightDistance:
+            return True
+
+        return False
+
+    def getSecondaryFacesSVG(self, linewidth, faceHighlightDistance, highlightLineWith):
         secondaryFacesSvg = ''
 
         for f in self.secondaryFaces:
             if f:
-                fill = 'url(#' + self.getPattern(f[1], 0.3) + ')'
+                patternOpacity = 0.3
+                shouldHightlight = self.shouldHightlight(
+                    f.originalFace, faceHighlightDistance)
+
+                if shouldHightlight:
+                    linewidth = highlightLineWith
+                    patternOpacity = 1
+
+                fill = 'url(#' + self.getPattern(f.color, patternOpacity) + ')'
 
                 pathdata = ''
 
-                for w in f[0].Wires:
+                for w in f.reorientedFace.Wires:
                     pathdata += self.getPathData(w)
 
                 current = PATH_TEMPLATE.replace("PATH_FILL", fill)
@@ -406,7 +434,7 @@ class Renderer:
 
         return secondaryFacesSvg
 
-    def getSvgParts(self):
+    def getSvgParts(self, faceHighlightDistance=0):
         "Returns all svg parts we cut"
         if not self.oriented:
             self.reorient()
@@ -415,7 +443,8 @@ class Renderer:
 
         sectionSvg = self.getSectionSVG("SECTION_STROKE_WIDTH")
         windowSvg = self.getWindowSVG("WINDOW_STROKE_WIDTH")
-        secondaryFacesSvg = self.getSecondaryFacesSVG("SECONDARY_STROKE_WIDTH")
+        secondaryFacesSvg = self.getSecondaryFacesSVG(
+            "SECONDARY_STROKE_WIDTH", faceHighlightDistance, "SECTION_STROKE_WIDTH")
         patternSvg = self.getPatternSVG()
 
         return {
@@ -461,10 +490,10 @@ if __name__ == "__main__":
 
         return p
 
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # pl = FreeCAD.Placement(
-    #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
+    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
     cutplane = calculateCutPlane(pl)
 
     DEBUG = True
@@ -473,7 +502,7 @@ if __name__ == "__main__":
     render.addObjects([FreeCAD.ActiveDocument.Wall])
     render.cut(cutplane)
 
-    parts = render.getSvgParts()
+    parts = render.getSvgParts(0)
 
     # print("---patterns---")
     # print(parts["patterns"])
