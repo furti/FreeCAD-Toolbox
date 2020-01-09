@@ -1,6 +1,8 @@
 import FreeCAD
 import Draft
 import math
+import WorkingPlane
+import DraftVecUtils
 
 import app.section_vector_renderer as section_vector_renderer
 from app.section_vector_renderer import toNumberString
@@ -142,9 +144,28 @@ def calculateDimensionAngle(start, end):
     return angle
 
 
-def getDimensionTextSvg(d, start, end, angle):
+def getProj(vec, plane):
+    if not plane:
+        return vec
+
+    nx = DraftVecUtils.project(vec, plane.u)
+    lx = nx.Length
+
+    if abs(nx.getAngle(plane.u)) > 0.1:
+        lx = -lx
+
+    ny = DraftVecUtils.project(vec, plane.v)
+    ly = ny.Length
+
+    if abs(ny.getAngle(plane.v)) > 0.1:
+        ly = -ly
+
+    return Vector(lx, ly, 0)
+
+
+def getDimensionTextSvg(d, start, end, angle, plane):
     text = toNumberString(d.Distance.Value / 10, d.ViewObject.Decimals)
-    tpos = d.ViewObject.Proxy.tbase
+    tpos = getProj(d.ViewObject.Proxy.tbase, plane)
     midpoint = start.add(end).multiply(0.5)
 
     tx = toNumberString(tpos.x)
@@ -158,9 +179,11 @@ def getDimensionTextSvg(d, start, end, angle):
     return textSvg
 
 
-def getDimensionSvg(d):
+def getDimensionSvg(d, plane):
     start = d.ViewObject.Proxy.p2
     end = d.ViewObject.Proxy.p3
+    start = getProj(start, plane)
+    end = getProj(end, plane)
 
     startx = toNumberString(start.x)
     starty = toNumberString(-start.y)
@@ -183,19 +206,22 @@ def getDimensionSvg(d):
     dimensionSvg = dimensionSvg.replace(
         "TICK_ROTATION_RIGHT", '%s %s %s' % (angle, endx, endy))
     dimensionSvg = dimensionSvg.replace(
-        "TEXT_ELEMENT", getDimensionTextSvg(d, start, end, angle))
+        "TEXT_ELEMENT", getDimensionTextSvg(d, start, end, angle, plane))
 
     return dimensionSvg
 
 
-def getDraftSvg(objects):
+def getDraftSvg(objects, placement):
     svg = ""
+
+    wp = WorkingPlane.plane()
+    wp.setFromPlacement(placement, rebase=True)
 
     for d in objects:
         objectType = Draft.getType(d)
 
         if objectType == "Dimension":
-            svg += getDimensionSvg(d)
+            svg += getDimensionSvg(d, wp)
         else:
             print("Unsupported object type " + objectType)
 
@@ -291,7 +317,7 @@ class SimpleSectionPlane:
         self.secondaryFacesSVG = parts["secondaryFaces"]
         self.windowSVG = parts["windows"]
         self.patternSVG = parts["patterns"]
-        self.draftSvg = getDraftSvg(groups["drafts"])
+        self.draftSvg = getDraftSvg(groups["drafts"], obj.Placement)
         self.boundBox = parts["boundBox"]
 
         self.boundBox.adaptFromDrafts(groups["drafts"])
