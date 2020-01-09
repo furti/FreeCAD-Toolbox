@@ -2,6 +2,7 @@ import FreeCAD
 import math
 import Part
 import ArchCommands
+import Draft
 import DraftVecUtils
 import DraftGeomUtils
 
