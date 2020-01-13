@@ -275,6 +275,14 @@ class SimpleSectionPlane:
         if not "FaceHighlightDistance" in pl:
             obj.addProperty("App::PropertyDistance", "FaceHighlightDistance",
                             "SectionPlane", "When greater 0, all faces not farther away than this value will be secion faces, even if they are secondary faces.").FaceHighlightDistance = 0
+        
+        if not "DocumentWidth" in pl:
+            obj.addProperty("App::PropertyDistance", "DocumentWidth",
+                            "Document", "The page width of the rendered document").DocumentWidth = 420
+        
+        if not "DocumentHeight" in pl:
+            obj.addProperty("App::PropertyDistance", "DocumentHeight",
+                            "Document", "The page height of the rendered document").DocumentHeight = 297
 
         self.Type = "SimpleSectionPlane"
 

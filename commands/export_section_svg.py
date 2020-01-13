@@ -19,8 +19,11 @@ class ExportSectionSvgCommand:
         section_plane = FreeCADGui.Selection.getSelection()[0]
         target = section_plane.TargetFile
         scale = section_plane.Scale
+        width = section_plane.DocumentWidth.Value
+        height = section_plane.DocumentHeight.Value
 
-        svg = section_plane.Proxy.getSvg(scale=scale)
+        svg = section_plane.Proxy.getSvg(
+            width=width, height=height, scale=scale)
 
         file_object = open(target, "w")
         file_object.write(svg)
