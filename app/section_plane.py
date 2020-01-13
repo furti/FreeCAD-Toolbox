@@ -135,7 +135,7 @@ def calculateDimensionAngle(start, end):
     xAxis = FreeCAD.Vector(1, 0, 0)
 
     angleInRad = math.acos(direction.dot(xAxis))
-    angle = math.degrees(angleInRad)
+    angle = round(math.degrees(angleInRad), 2)
 
     if angle > 90:
         while angle >= 90:
@@ -490,8 +490,10 @@ if __name__ == "__main__":
         #     FreeCAD.ActiveDocument.Wall003]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.BuildingPart]
+        # simpleSectionPlaneObject.IncludeObjects = [
+        #     FreeCAD.ActiveDocument.BuildingPart001]
         simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.BuildingPart001]
+            FreeCAD.ActiveDocument.Dimension203,FreeCAD.ActiveDocument.Dimension204]
 
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
