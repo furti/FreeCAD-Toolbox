@@ -15,3 +15,4 @@ import commands.create_floor_builder
 import commands.create_wood_extract
 import commands.create_section_plane
 import commands.export_section_svg
+import commands.include_in_section
