@@ -275,11 +275,11 @@ class SimpleSectionPlane:
         if not "FaceHighlightDistance" in pl:
             obj.addProperty("App::PropertyDistance", "FaceHighlightDistance",
                             "SectionPlane", "When greater 0, all faces not farther away than this value will be secion faces, even if they are secondary faces.").FaceHighlightDistance = 0
-        
+
         if not "DocumentWidth" in pl:
             obj.addProperty("App::PropertyDistance", "DocumentWidth",
                             "Document", "The page width of the rendered document").DocumentWidth = 420
-        
+
         if not "DocumentHeight" in pl:
             obj.addProperty("App::PropertyDistance", "DocumentHeight",
                             "Document", "The page height of the rendered document").DocumentHeight = 297
@@ -493,12 +493,17 @@ if __name__ == "__main__":
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.BuildingPart001]
         simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.Dimension203,FreeCAD.ActiveDocument.Dimension204]
+            FreeCAD.ActiveDocument.Wall003, FreeCAD.ActiveDocument.Dimension004]
 
+        # Top
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
+        # Front
         # simpleSectionPlaneObject.Placement = FreeCAD.Placement(
         #     Vector(0, -1000, 0), FreeCAD.Rotation(Vector(1, 0, 0), 90))
+        # Right
+        simpleSectionPlaneObject.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
 
         FreeCAD.ActiveDocument.recompute()
 

@@ -588,16 +588,21 @@ if __name__ == "__main__":
 
         return p
 
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    #Top
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    #Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
+    #Right
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     cutplane = calculateCutPlane(pl)
 
     DEBUG = True
 
     render = Renderer(pl)
-    render.addObjects([FreeCAD.ActiveDocument.Wall])
+    render.addObjects([FreeCAD.ActiveDocument.Wall003])
     render.cut(cutplane)
 
     parts = render.getSvgParts(0)
