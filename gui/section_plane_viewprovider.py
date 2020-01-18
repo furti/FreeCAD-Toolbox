@@ -39,15 +39,26 @@ class ViewProviderSimpleSectionPlane():
     def updateData(self, obj, prop):
         if prop == "Placement":
             self.updatePlaneCoordinates(obj.ViewObject)
+        elif prop in ["PlaneLength", "PlaneHeight"]:
+            self.updatePlaneCoordinates(obj.ViewObject)
 
     def updatePlaneCoordinates(self, vobj):
+        obj = vobj.Object
+        
         plane_length = 100000
+        plane_height = 100000
 
-        r = vobj.Object.Placement
-        p1 = FreeCAD.Vector(-plane_length, -plane_length, 0)
-        p2 = FreeCAD.Vector(plane_length, -plane_length, 0)
-        p3 = FreeCAD.Vector(plane_length, plane_length, 0)
-        p4 = FreeCAD.Vector(-plane_length, plane_length, 0)
+        if obj.PlaneLength.Value > 0:
+            plane_length = obj.PlaneLength.Value
+        
+        if obj.PlaneHeight.Value > 0:
+            plane_height = obj.PlaneHeight.Value
+
+        r = obj.Placement
+        p1 = FreeCAD.Vector(-plane_length, -plane_height, 0)
+        p2 = FreeCAD.Vector(plane_length, -plane_height, 0)
+        p3 = FreeCAD.Vector(plane_length, plane_height, 0)
+        p4 = FreeCAD.Vector(-plane_length, plane_height, 0)
 
         verts = []
         verts.append([p1.x, p1.y, 0])

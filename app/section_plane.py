@@ -284,6 +284,14 @@ class SimpleSectionPlane:
             obj.addProperty("App::PropertyDistance", "DocumentHeight",
                             "Document", "The page height of the rendered document").DocumentHeight = 297
 
+        if not "PlaneLength" in pl:
+            obj.addProperty("App::PropertyDistance", "PlaneLength",
+                            "SectionPlane", "The length of the sectionplane. When greater 0 the cutplane will be clipped").PlaneLength = 0
+
+        if not "PlaneHeight" in pl:
+            obj.addProperty("App::PropertyDistance", "PlaneHeight",
+                            "SectionPlane", "The height of the sectionplane. When greater 0 the cutplane will be clipped").PlaneHeight = 0
+
         self.Type = "SimpleSectionPlane"
 
     def onDocumentRestored(self, obj):
@@ -331,18 +339,31 @@ class SimpleSectionPlane:
         self.boundBox.adaptFromDrafts(groups["drafts"])
 
     def render(self, obj, groups, cutplane):
+        shouldClip = self.shouldClip(obj)
+
+        print('clip %s' % (shouldClip,))
+
         render = section_vector_renderer.Renderer(obj.Placement)
         render.addObjects(groups["objects"])
         render.addWindows(groups["windows"])
-        render.cut(cutplane)
+        render.cut(cutplane, clip=shouldClip)
 
         return render
+
+    def shouldClip(self, obj):
+        return obj.PlaneLength.Value > 0 or obj.PlaneHeight.Value > 0
 
     def calculateCutPlane(self, obj):
         import Part
 
-        l = 10000
-        h = 10000
+        l = 100000
+        h = 100000
+
+        if obj.PlaneLength > 0:
+            l = obj.PlaneLength.Value
+
+        if obj.PlaneHeight > 0:
+            h = obj.PlaneHeight.Value
 
         if obj.ViewObject:
             if hasattr(obj.ViewObject, "DisplayLength"):
@@ -504,6 +525,8 @@ if __name__ == "__main__":
         # Right
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+
+        simpleSectionPlaneObject.PlaneLength = 2000
 
         FreeCAD.ActiveDocument.recompute()
 

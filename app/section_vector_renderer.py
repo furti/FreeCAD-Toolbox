@@ -278,7 +278,7 @@ class Renderer:
             return Part.LineSegment(v1, v2).toShape()
         return edge
 
-    def doCut(self, cutplane, hidden, shapes):
+    def doCut(self, cutplane, hidden, clip, shapes):
         objectShapes = []
         sections = []
         faces = []
@@ -289,7 +289,7 @@ class Renderer:
             shps.append(sh[0])
 
         cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
-            cutplane, shps)
+            cutplane, shps, clip=clip)
 
         if not cutvolume:
             cutface = cutplane
@@ -321,7 +321,7 @@ class Renderer:
 
         return (objectShapes, sections, faces)
 
-    def cut(self, cutplane, hidden=False):
+    def cut(self, cutplane, hidden=False, clip=False):
         "Cuts through the objectShapes with a given cut plane and builds section faces"
         if DEBUG:
             print("\n\n======> Starting cut\n\n")
@@ -334,7 +334,7 @@ class Renderer:
                 print("No objects to make sections")
         else:
             objectShapes, sections, faces = self.doCut(
-                cutplane, hidden, self.objectShapes)
+                cutplane, hidden, clip, self.objectShapes)
 
             self.objectShapes = objectShapes
             self.sections = sections
@@ -348,7 +348,7 @@ class Renderer:
                 print("No objects to make windows")
         else:
             windowShapes, windows, faces = self.doCut(
-                cutplane, hidden, self.windowShapes)
+                cutplane, hidden, clip, self.windowShapes)
 
             self.windowShapes = windowShapes
             self.windows = windows
@@ -571,11 +571,8 @@ class Renderer:
 
 
 if __name__ == "__main__":
-    def calculateCutPlane(pl):
+    def calculateCutPlane(pl, l=10000, h=10000):
         import Part
-
-        l = 10000
-        h = 10000
 
         p = Part.makePlane(l, h, FreeCAD.Vector(
             l/2, -h/2, 0), FreeCAD.Vector(0, 0, -1))
@@ -589,21 +586,22 @@ if __name__ == "__main__":
         return p
 
     #Top
-    # pl = FreeCAD.Placement(
-    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    pl = FreeCAD.Placement(
+         FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     #Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
     #Right
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
-    cutplane = calculateCutPlane(pl)
+    #pl = FreeCAD.Placement(
+    #    FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+    cutplane = calculateCutPlane(pl, h=2000)
+
 
     DEBUG = True
 
     render = Renderer(pl)
     render.addObjects([FreeCAD.ActiveDocument.Wall003])
-    render.cut(cutplane)
+    render.cut(cutplane, clip=True)
 
     parts = render.getSvgParts(0)
 
