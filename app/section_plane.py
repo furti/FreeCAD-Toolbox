@@ -292,6 +292,10 @@ class SimpleSectionPlane:
             obj.addProperty("App::PropertyDistance", "PlaneHeight",
                             "SectionPlane", "The height of the sectionplane. When greater 0 the cutplane will be clipped").PlaneHeight = 0
 
+        if not "PlaneDepth" in pl:
+            obj.addProperty("App::PropertyDistance", "PlaneDepth",
+                            "SectionPlane", "The depth of the sectionplane. When greater 0 everything not in between this distance from the section plane will be clipped").PlaneDepth = 0
+
         self.Type = "SimpleSectionPlane"
 
     def onDocumentRestored(self, obj):
@@ -341,12 +345,10 @@ class SimpleSectionPlane:
     def render(self, obj, groups, cutplane):
         shouldClip = self.shouldClip(obj)
 
-        print('clip %s' % (shouldClip,))
-
         render = section_vector_renderer.Renderer(obj.Placement)
         render.addObjects(groups["objects"])
         render.addWindows(groups["windows"])
-        render.cut(cutplane, clip=shouldClip)
+        render.cut(cutplane, clip=shouldClip, clipDepth=obj.PlaneDepth.Value)
 
         return render
 

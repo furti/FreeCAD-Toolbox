@@ -278,7 +278,7 @@ class Renderer:
             return Part.LineSegment(v1, v2).toShape()
         return edge
 
-    def doCut(self, cutplane, hidden, clip, shapes):
+    def doCut(self, cutplane, hidden, clip, clipDepth, shapes):
         objectShapes = []
         sections = []
         faces = []
@@ -319,9 +319,12 @@ class Renderer:
                         c = sol.cut(invcutvolume)
                         self.hiddenEdges.extend(c.Edges)
 
+        if clipDepth > 0:
+            faces = [f for f in faces if self.isInRange(f.originalFace, clipDepth)]
+
         return (objectShapes, sections, faces)
 
-    def cut(self, cutplane, hidden=False, clip=False):
+    def cut(self, cutplane, hidden=False, clip=False, clipDepth=0):
         "Cuts through the objectShapes with a given cut plane and builds section faces"
         if DEBUG:
             print("\n\n======> Starting cut\n\n")
@@ -334,7 +337,7 @@ class Renderer:
                 print("No objects to make sections")
         else:
             objectShapes, sections, faces = self.doCut(
-                cutplane, hidden, clip, self.objectShapes)
+                cutplane, hidden, clip, clipDepth, self.objectShapes)
 
             self.objectShapes = objectShapes
             self.sections = sections
@@ -348,7 +351,7 @@ class Renderer:
                 print("No objects to make windows")
         else:
             windowShapes, windows, faces = self.doCut(
-                cutplane, hidden, clip, self.windowShapes)
+                cutplane, hidden, clip, clipDepth, self.windowShapes)
 
             self.windowShapes = windowShapes
             self.windows = windows
@@ -468,8 +471,8 @@ class Renderer:
 
         return windowsvg
 
-    def shouldHightlight(self, face, faceHighlightDistance):
-        if faceHighlightDistance <= 0:
+    def isInRange(self, face, maxDistance):
+        if maxDistance <= 0:
             return False
 
         distance = face.CenterOfMass.distanceToPlane(
@@ -478,7 +481,7 @@ class Renderer:
         if distance < 0:
             distance *= -1
 
-        if distance <= faceHighlightDistance:
+        if distance <= maxDistance:
             return True
 
         return False
@@ -489,7 +492,7 @@ class Renderer:
         for f in self.secondaryFaces:
             if f:
                 patternOpacity = 0.3
-                shouldHightlight = self.shouldHightlight(
+                shouldHightlight = self.isInRange(
                     f.originalFace, faceHighlightDistance)
 
                 if shouldHightlight:
@@ -585,17 +588,16 @@ if __name__ == "__main__":
 
         return p
 
-    #Top
+    # Top
     pl = FreeCAD.Placement(
-         FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
-    #Front
+        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
-    #Right
-    #pl = FreeCAD.Placement(
+    # Right
+    # pl = FreeCAD.Placement(
     #    FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     cutplane = calculateCutPlane(pl, h=2000)
-
 
     DEBUG = True
 
