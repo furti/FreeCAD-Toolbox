@@ -400,7 +400,7 @@ class SimpleSectionPlane:
         labelSvg = labelSvg.replace(
             "TEXT_POSITION_X", pageEndX)
         labelSvg = labelSvg.replace(
-            "TEXT_POSITION_Y", toNumberString(y + 10 / scale))
+            "TEXT_POSITION_Y", toNumberString(y + 20 / scale))
         labelSvg = labelSvg.replace("TEXT_ROTATION", "0")
         labelSvg = labelSvg.replace("TEXT_FONT_SIZE", fontSize)
         labelSvg = labelSvg.replace("text-anchor:middle", "text-anchor:end")
@@ -410,7 +410,7 @@ class SimpleSectionPlane:
         scaleSvg = scaleSvg.replace(
             "TEXT_POSITION_X", pageEndX)
         scaleSvg = scaleSvg.replace(
-            "TEXT_POSITION_Y", toNumberString(y + 20 / scale))
+            "TEXT_POSITION_Y", toNumberString(y + 30 / scale))
         scaleSvg = scaleSvg.replace("TEXT_ROTATION", "0")
         scaleSvg = scaleSvg.replace("TEXT_FONT_SIZE", fontSize)
         scaleSvg = scaleSvg.replace("text-anchor:middle", "text-anchor:end")
