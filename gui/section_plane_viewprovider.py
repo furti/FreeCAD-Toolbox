@@ -48,10 +48,10 @@ class ViewProviderSimpleSectionPlane():
         plane_length = 100000
         plane_height = 100000
 
-        if obj.PlaneLength.Value > 0:
+        if hasattr(obj, "PlaneLength") and obj.PlaneLength.Value > 0:
             plane_length = obj.PlaneLength.Value
         
-        if obj.PlaneHeight.Value > 0:
+        if hasattr(obj, "PlaneHeight") and obj.PlaneHeight.Value > 0:
             plane_height = obj.PlaneHeight.Value
 
         r = obj.Placement
