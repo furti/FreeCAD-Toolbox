@@ -66,6 +66,12 @@ def filterObjects(includeList, excludeList):
         if o in excludeList:
             continue
 
+        if hasattr(o, "Slabs") and o.Slabs is not None:
+            for s in o.Slabs:
+                objectsToProcess.append(s)
+
+            continue
+
         objectsToProcess.append(o)
 
         groupObjects = Draft.getGroupContents(
@@ -507,16 +513,16 @@ if __name__ == "__main__":
 
         # simpleSectionPlaneObject.FaceHighlightDistance = 6600
 
-        # simpleSectionPlaneObject.IncludeObjects = [
-        #     FreeCAD.ActiveDocument.Wall]
+        simpleSectionPlaneObject.IncludeObjects = [
+            FreeCAD.ActiveDocument.Floor001]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall003]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.BuildingPart]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.BuildingPart001]
-        simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.Wall003, FreeCAD.ActiveDocument.Dimension004]
+        # simpleSectionPlaneObject.IncludeObjects = [
+        #     FreeCAD.ActiveDocument.Wall003, FreeCAD.ActiveDocument.Dimension004]
 
         # Top
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
