@@ -43,9 +43,30 @@ def toNumberString(val, precision=None):
     return str(rounded)
 
 
+def getProj(vec, plane):
+    if not plane:
+        return vec
+
+    nx = DraftVecUtils.project(vec, plane.u)
+    lx = nx.Length
+
+    if abs(nx.getAngle(plane.u)) > 0.1:
+        lx = -lx
+
+    ny = DraftVecUtils.project(vec, plane.v)
+    ly = ny.Length
+
+    if abs(ny.getAngle(plane.v)) > 0.1:
+        ly = -ly
+
+    return FreeCAD.Vector(lx, ly, 0)
+
+
 class BoundBox():
-    def __init__(self):
+    def __init__(self, plane):
         self.initialized = False
+        self.plane = plane
+
         self.minx = 0
         self.miny = 0
         self.maxx = 0
@@ -82,6 +103,8 @@ class BoundBox():
             if objectType == "Dimension":
                 start = o.ViewObject.Proxy.p2
                 end = o.ViewObject.Proxy.p3
+                start = getProj(start, self.plane)
+                end = getProj(end, self.plane)
 
                 minx = min(start.x, end.x)
                 maxx = max(start.x, end.x)
@@ -224,17 +247,21 @@ class Renderer:
 
         normal = self.wp.getNormal()
 
-        if normal.z > 0:
+        normalx = round(normal.x, 3)
+        normaly = round(normal.y, 3)
+        normalz = round(normal.z, 3)
+
+        if normalz > 0:
             faces.sort(key=sortZ)
-        elif normal.x > 0:
+        elif normalx > 0:
             faces.sort(key=sortX)
-        elif normal.y > 0:
+        elif normaly > 0:
             faces.sort(key=sortY)
-        elif normal.z < 0:
+        elif normalz < 0:
             faces.sort(key=sortZ, reverse=True)
-        elif normal.x < 0:
+        elif normalx < 0:
             faces.sort(key=sortX, reverse=True)
-        elif normal.y < 0:
+        elif normaly < 0:
             faces.sort(key=sortY, reverse=True)
 
     def projectFace(self, face):
@@ -320,7 +347,8 @@ class Renderer:
                         self.hiddenEdges.extend(c.Edges)
 
         if clipDepth > 0:
-            faces = [f for f in faces if self.isInRange(f.originalFace, clipDepth)]
+            faces = [f for f in faces if self.isInRange(
+                f.originalFace, clipDepth)]
 
         return (objectShapes, sections, faces)
 
@@ -538,7 +566,7 @@ class Renderer:
         }
 
     def buildBoundBox(self):
-        boundBox = BoundBox()
+        boundBox = BoundBox(self.wp)
 
         if self.secondaryFaces:
             boundBox.adaptFromShapes(
@@ -586,26 +614,38 @@ if __name__ == "__main__":
 
         p.Placement = pl
 
+        # Part.show(p)
+
         return p
 
     # Top
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
     # Right
     # pl = FreeCAD.Placement(
     #    FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
-    cutplane = calculateCutPlane(pl, h=2000)
+    # Back
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
+
+    # print(pl)
+
+    cutplane = calculateCutPlane(pl)
 
     DEBUG = True
 
     render = Renderer(pl)
-    render.addObjects([FreeCAD.ActiveDocument.Wall003])
-    render.cut(cutplane, clip=True)
+    render.addObjects([FreeCAD.ActiveDocument.Wall001,
+                       FreeCAD.ActiveDocument.Wall002])
+    render.cut(cutplane, clip=False)
 
     parts = render.getSvgParts(0)
+
+    boundBox = parts["boundBox"]
+    boundBox.adaptFromDrafts([FreeCAD.ActiveDocument.Dimension005])
 
     width = 420
     height = 297
@@ -670,7 +710,7 @@ if __name__ == "__main__":
 """
 
     template = template.replace(
-        "VIEWBOX_VALUES", parts["boundBox"].buildViewbox(1, width, height))
+        "VIEWBOX_VALUES", boundBox.buildViewbox(1/50, width, height))
     template = template.replace("WIDTH", toNumberString(width))
     template = template.replace("HEIGHT", toNumberString(height))
     template = template.replace("PATTERN_SVG", parts["patterns"])
