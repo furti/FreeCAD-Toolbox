@@ -183,14 +183,18 @@ def getDimensionSvg(d, plane):
         endx, toNumberString(-end.y - 50), endx, toNumberString(-end.y + 50))
 
     angle = calculateDimensionAngle(start, end)
+    tickAngle = angle - 45
+
+    if tickAngle < 0:
+        tickAngle = -tickAngle
 
     dimensionSvg = DIMESION_TEMPLATE.replace("PATH_DATA", path)
     dimensionSvg = dimensionSvg.replace("TICK_LEFT", tickLeft)
     dimensionSvg = dimensionSvg.replace("TICK_RIGHT", tickRight)
     dimensionSvg = dimensionSvg.replace(
-        "TICK_ROTATION_LEFT", '%s %s %s' % (angle, startx, starty))
+        "TICK_ROTATION_LEFT", '%s %s %s' % (tickAngle, startx, starty))
     dimensionSvg = dimensionSvg.replace(
-        "TICK_ROTATION_RIGHT", '%s %s %s' % (angle, endx, endy))
+        "TICK_ROTATION_RIGHT", '%s %s %s' % (tickAngle, endx, endy))
     dimensionSvg = dimensionSvg.replace(
         "TEXT_ELEMENT", getDimensionTextSvg(d, start, end, angle, plane))
 
