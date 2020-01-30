@@ -2,13 +2,14 @@ import FreeCAD
 import Part
 
 Z_ROTATION = FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+UEBERLAGER_HEIGHT = 70
 
 
 class Raffstore:
     def __init__(self, obj):
         obj.Proxy = self
 
-        self.Parts = ["", "", ""]
+        self.Parts = ["", "", "", ""]
 
         self.setupProperties(obj)
 
@@ -34,12 +35,19 @@ class Raffstore:
             obj.addProperty("App::PropertyDistance",   "TopInsulationThickness",
                             "Raffstore", "The thickness of the insulation above the raffstore")
             obj.TopInsulationThickness = 80
+        if not "FrontInsulationThickness" in pl:
+            obj.addProperty("App::PropertyDistance",   "FrontInsulationThickness",
+                            "Raffstore", "The thickness of the insulation in front of the Überleger")
+            obj.TopInsulationThickness = 80
         if not "InsulationMaterial" in pl:
             obj.addProperty("App::PropertyLink",   "InsulationMaterial",
                             "Raffstore", "The material for the insulation")
         if not "RaffstoreMaterial" in pl:
             obj.addProperty("App::PropertyLink",   "RaffstoreMaterial",
                             "Raffstore", "The material for the Raffstore")
+        
+        if len(self.Parts) == 3:
+            self.Parts.append("")
 
         self.Type = "Raffstore"
 
@@ -47,22 +55,37 @@ class Raffstore:
         raffstore = self.buildRaffstore(obj)
         insulationTop = self.buildTopInsulation(obj)
         insulationBack = self.buildBackInsulation(obj)
+        insulationFront = self.buildFrontInsulation(obj)
 
-        shape = raffstore.copy().fuse([insulationTop, insulationBack])
+        allParts = [insulationTop, insulationBack]
+
+        if insulationFront:
+            allParts.append(insulationFront)
+
+        shape = raffstore.copy().fuse(allParts)
         shape = shape.removeSplitter()
         obj.Shape = shape
 
         raffstoreObject = self.ensure(0, obj.Label + '_Kasten')
         insulationTopObject = self.ensure(1, obj.Label + '_Daemmung_Oben')
         insulationBackObject = self.ensure(2, obj.Label + '_Daemmung_Hinten')
+        insulationFrontObject = None
 
         raffstoreObject.Shape = raffstore
         insulationTopObject.Shape = insulationTop
         insulationBackObject.Shape = insulationBack
 
+        if insulationFront:
+            insulationFrontObject = self.ensure(
+                3, obj.Label + '_Daemmung_Ueberleger')
+            insulationFrontObject.Shape = insulationFront
+
         if obj.InsulationMaterial:
             insulationTopObject.Material = obj.InsulationMaterial
             insulationBackObject.Material = obj.InsulationMaterial
+
+            if insulationFrontObject:
+                insulationFrontObject.Material = obj.InsulationMaterial
 
         if obj.RaffstoreMaterial:
             raffstoreObject.Material = obj.RaffstoreMaterial
@@ -124,6 +147,25 @@ class Raffstore:
         extrutionDir = plane.normalAt(0.5, 0.5).negative()
 
         return plane.extrude(extrutionDir.multiply(topInsulationThickness + raffstoreHeight))
+
+    def buildFrontInsulation(self, obj):
+        if not hasattr(obj, "FrontInsulationThickness") or obj.FrontInsulationThickness.Value == 0:
+            return None
+
+        baseNormal = self.getBaseNormal(obj)
+        baseEdge = self.getBaseEdge(obj)
+
+        raffstoreWidth = obj.RaffstoreWidth.Value
+        raffstoreHeight = obj.RaffstoreHeight.Value
+        insulationThickness = obj.FrontInsulationThickness.Value
+        topInsulationThickness = obj.TopInsulationThickness.Value
+
+        plane = baseEdge.extrude(baseNormal.multiply(insulationThickness))
+        extrutionDir = plane.normalAt(0.5, 0.5).negative()
+
+        plane.translate(FreeCAD.Vector(extrutionDir).multiply(raffstoreHeight + topInsulationThickness))
+
+        return plane.extrude(extrutionDir.multiply(UEBERLAGER_HEIGHT))
 
     def getBaseEdge(self, obj):
         return obj.Base.Shape.Edges[0].copy()
