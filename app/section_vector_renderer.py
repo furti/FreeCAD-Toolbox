@@ -47,19 +47,7 @@ def getProj(vec, plane):
     if not plane:
         return vec
 
-    nx = DraftVecUtils.project(vec, plane.u)
-    lx = nx.Length
-
-    if abs(nx.getAngle(plane.u)) > 0.1:
-        lx = -lx
-
-    ny = DraftVecUtils.project(vec, plane.v)
-    ly = ny.Length
-
-    if abs(ny.getAngle(plane.v)) > 0.1:
-        ly = -ly
-
-    return FreeCAD.Vector(lx, ly, 0)
+    return plane.getLocalCoords(vec)
 
 
 class BoundBox():
