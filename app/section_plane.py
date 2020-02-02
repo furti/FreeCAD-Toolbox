@@ -119,7 +119,9 @@ DIMESION_TEMPLATE = """
    stroke="#000000">
     <path d="PATH_DATA" />
     <path d="TICK_LEFT" transform="rotate(TICK_ROTATION_LEFT)" />
+    <path d="TICK_LEFT" transform="rotate(TICK_ROTATION_LEFT_ANGLE)" />
     <path d="TICK_RIGHT" transform="rotate(TICK_ROTATION_RIGHT)" />
+    <path d="TICK_RIGHT" transform="rotate(TICK_ROTATION_RIGHT_ANGLE)" />
     TEXT_ELEMENT
 </g>
 """
@@ -192,9 +194,13 @@ def getDimensionSvg(d, plane):
     dimensionSvg = dimensionSvg.replace("TICK_LEFT", tickLeft)
     dimensionSvg = dimensionSvg.replace("TICK_RIGHT", tickRight)
     dimensionSvg = dimensionSvg.replace(
-        "TICK_ROTATION_LEFT", '%s %s %s' % (tickAngle, startx, starty))
+        "TICK_ROTATION_LEFT_ANGLE", '%s %s %s' % (tickAngle, startx, starty))
     dimensionSvg = dimensionSvg.replace(
-        "TICK_ROTATION_RIGHT", '%s %s %s' % (tickAngle, endx, endy))
+        "TICK_ROTATION_LEFT", '%s %s %s' % (angle, startx, starty))
+    dimensionSvg = dimensionSvg.replace(
+        "TICK_ROTATION_RIGHT_ANGLE", '%s %s %s' % (tickAngle, endx, endy))
+    dimensionSvg = dimensionSvg.replace(
+        "TICK_ROTATION_RIGHT", '%s %s %s' % (angle, endx, endy))
     dimensionSvg = dimensionSvg.replace(
         "TEXT_ELEMENT", getDimensionTextSvg(d, start, end, angle, plane))
 
