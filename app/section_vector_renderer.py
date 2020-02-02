@@ -11,16 +11,58 @@ MAXLOOP = 10  # the max number of loop before abort
 DEBUG = FreeCAD.ParamGet(
     "User parameter:BaseApp/Preferences/Mod/Arch").GetBool("ShowVRMDebug")
 
-PATTERN_TEMPLATE = """
+DEFAULT_PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    x="0" y="0" width="200" height="200">
+    x="0" y="0" width="100" height="100">
         <g>
-            <rect width="200" height="200"
+            <rect width="100" height="100"
                 style="stroke:none; fill:#ffffff" />
             <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
-                  d="M0,0 l200,200" />
+                  d="M0,0 l100,100" />
+        </g>
+</pattern>
+"""
+
+INSULATION_HARD_PATTERN_TEMPLATE = """
+<pattern
+    id="PATTERN_ID"
+    patternUnits="userSpaceOnUse"
+    x="0" y="0" width="100" height="100">
+        <g>
+            <rect width="100" height="100"
+                style="stroke:none; fill:#ffffff" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M 0,0 100,25 0,50 100,75 0,100" />
+        </g>
+</pattern>
+"""
+
+INSULATION_SOFT_PATTERN_TEMPLATE = """
+<pattern
+    id="PATTERN_ID"
+    patternUnits="userSpaceOnUse"
+    x="0" y="0" width="100" height="100">
+        <g>
+            <rect width="100" height="100"
+                style="stroke:none; fill:#ffffff" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M 25,0 75,25 25,50 75,75 25,100 M 25,0 C 25,0 0,9.9768635 0,24.999995 0,40.023126 25,50 25,50 m 0,0 C 25,50 0,59.976863 0,74.999995 0,90.023126 25,100.00001 25,100.00001 M 75,75 c 0,0 25,9.976865 25,24.999997 C 100,115.02313 75,125 75,125 m 0,-150 c 0,0 25,9.976868 25,25 0,15.023131 -25,25 -25,25 m 0,0 c 0,0 25,9.976869 25,25 0,15.023131 -25,25 -25,25" />
+        </g>
+</pattern>
+"""
+
+WINDOW_PATTERN_TEMPLATE = """
+<pattern
+    id="PATTERN_ID"
+    patternUnits="userSpaceOnUse"
+    x="0" y="0" width="100" height="100">
+        <g>
+            <rect width="100" height="100"
+                style="stroke:none; fill:#ffffff" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M 0,100 100,0 M 0,0 100,100" />
         </g>
 </pattern>
 """
@@ -29,6 +71,13 @@ PATH_TEMPLATE = """
 <path d="PATH_DATA" stroke="#000000" stroke-width="STROKE_WIDTH"
       style="fill:PATH_FILL; fill-rule: evenodd; stroke-width:STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:none;"/>
 """
+
+PATTERN_TEMPLATES = {
+    'DEFAULT': DEFAULT_PATTERN_TEMPLATE,
+    "INSULATION_HARD": INSULATION_HARD_PATTERN_TEMPLATE,
+    "INSULATION_SOFT": INSULATION_SOFT_PATTERN_TEMPLATE,
+    "WINDOW": WINDOW_PATTERN_TEMPLATE
+}
 
 
 def toNumberString(val, precision=None):
@@ -48,6 +97,18 @@ def getProj(vec, plane):
         return vec
 
     return plane.getLocalCoords(vec)
+
+
+def getPatternType(o):
+    if not hasattr(o, "Material") or not o.Material:
+        return None
+
+    mat = o.Material.Material
+
+    if not "PatternType" in mat:
+        return None
+
+    return mat["PatternType"]
 
 
 class BoundBox():
@@ -131,9 +192,10 @@ class BoundBox():
 
 
 class FaceData:
-    def __init__(self, originalFace, color, reorientedFace=None):
+    def __init__(self, originalFace, color, pattern_type, reorientedFace=None):
         self.originalFace = originalFace
         self.color = color
+        self.pattern_type = pattern_type
         self.reorientedFace = reorientedFace
 
 
@@ -174,8 +236,10 @@ class Renderer:
             if o.isDerivedFrom("Part::Feature"):
                 color = o.ViewObject.ShapeColor
                 if o.Shape.Faces:
-                    self.objectShapes.append([o.Shape, color])
+                    self.objectShapes.append(
+                        [o.Shape, color, getPatternType(o)])
 
+        print(self.objectShapes)
         self.resetFlags()
 
     def addWindows(self, objs):
@@ -185,7 +249,8 @@ class Renderer:
             if o.isDerivedFrom("Part::Feature"):
                 color = o.ViewObject.ShapeColor
                 if o.Shape.Faces:
-                    self.windowShapes.append([o.Shape, color])
+                    self.windowShapes.append(
+                        [o.Shape, color, getPatternType(o)])
 
         self.resetFlags()
 
@@ -283,7 +348,7 @@ class Renderer:
             if vnorm.getAngle(sh.normalAt(0, 0)) > 1:
                 sh.reverse()
 
-            return FaceData(face.originalFace, face.color, sh)
+            return FaceData(face.originalFace, face.color, face.pattern_type, sh)
 
     def projectEdge(self, edge):
         "projects a single edge on the WP"
@@ -326,9 +391,9 @@ class Renderer:
 
                     for f in c.Faces:
                         if DraftGeomUtils.isCoplanar([f, cutface]):
-                            sections.append(FaceData(f, sh[1]))
+                            sections.append(FaceData(f, sh[1], sh[2]))
                         else:
-                            faces.append(FaceData(f, sh[1]))
+                            faces.append(FaceData(f, sh[1], sh[2]))
 
                     if hidden:
                         c = sol.cut(invcutvolume)
@@ -394,12 +459,26 @@ class Renderer:
 
         return "#" + r + g + b
 
-    def getPattern(self, color, opacity=1):
+    def getPatternTemplate(self, fill, opacity, pattern_type):
+        if pattern_type is None:
+            pattern_type = "DEFAULT"
+
+        if not pattern_type in PATTERN_TEMPLATES:
+            print("Unknown PatternType " + pattern_type)
+            pattern_type = "DEFAULT"
+
+        pattern_id = "%s-%s-%s" % (pattern_type.lower(),
+                                   fill.replace("#", ""), str(opacity))
+
+        return (PATTERN_TEMPLATES[pattern_type], pattern_id)
+
+    def getPattern(self, color, pattern_type, opacity=1):
         fill = self.getFill(color)
-        pattern_id = "stripes-%s-%s" % (fill.replace("#", ""), str(opacity))
+        pattern, pattern_id = self.getPatternTemplate(
+            fill, opacity, pattern_type)
 
         if not pattern_id in self.patterns:
-            pattern = PATTERN_TEMPLATE.replace("PATTERN_ID", pattern_id)
+            pattern = pattern.replace("PATTERN_ID", pattern_id)
             pattern = pattern.replace("PATTERN_COLOR", fill)
             pattern = pattern.replace("PATTERN_OPACITY", str(opacity))
 
@@ -452,7 +531,7 @@ class Renderer:
 
         for f in self.sections:
             if f:
-                fill = 'url(#' + self.getPattern(f.color) + ')'
+                fill = 'url(#' + self.getPattern(f.color, f.pattern_type) + ')'
 
                 pathdata = ''
 
@@ -472,7 +551,7 @@ class Renderer:
 
         for f in self.windows:
             if f:
-                fill = 'url(#' + self.getPattern(f.color) + ')'
+                fill = 'url(#' + self.getPattern(f.color, f.pattern_type) + ')'
 
                 pathdata = ''
 
@@ -515,7 +594,8 @@ class Renderer:
                     linewidth = highlightLineWith
                     patternOpacity = 1
 
-                fill = 'url(#' + self.getPattern(f.color, patternOpacity) + ')'
+                fill = 'url(#' + self.getPattern(f.color,
+                                                 f.pattern_type, patternOpacity) + ')'
 
                 pathdata = ''
 
