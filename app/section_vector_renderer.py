@@ -198,6 +198,50 @@ class FaceData:
         self.pattern_type = pattern_type
         self.reorientedFace = reorientedFace
 
+    def matches(self, otherFace):
+        if not self.reorientedFace or not otherFace.reorientedFace:
+            return False
+
+        selfPoints = [(round(v.Point.x, 5), round(v.Point.y, 5))
+                      for v in self.reorientedFace.Vertexes]
+        otherPoints = [(round(v.Point.x, 5), round(v.Point.y, 5))
+                      for v in otherFace.reorientedFace.Vertexes]
+
+        if len(selfPoints) != len(otherPoints):
+            return False
+        
+        # Find the first point, that is not in the other Faces points.
+        # When no point is missing, the faces can be considered as equals
+        for p in selfPoints:
+            if not p in otherPoints:
+                return False
+
+        return True
+
+    def correctlyOriented(self):
+        if not self.reorientedFace:
+            return True
+
+        yValues = set([round(v.Point.y, 5)
+                       for v in self.reorientedFace.Vertexes])
+        xValues = set([round(v.Point.x, 5)
+                       for v in self.reorientedFace.Vertexes])
+
+        # When all y values or x for the vertices are the same, the face will be a single line in the SVG. So we can skip it entirely
+
+        return len(yValues) > 1 and len(xValues) > 1
+
+
+def indexOfFace(faceList, face):
+    if not faceList:
+        return None
+
+    for i, f in enumerate(faceList):
+        if face.matches(f):
+            return i
+
+    return None
+
 
 class Renderer:
     def __init__(self, placement):
@@ -271,6 +315,37 @@ class Renderer:
             self.hiddenEdges = [self.projectEdge(e) for e in self.hiddenEdges]
 
         self.oriented = True
+
+    def removeDuplicates(self):
+        if not self.secondaryFaces:
+            return
+
+        newSecondaryFaces = []
+
+        for face in self.secondaryFaces:
+            # If the face is already in a section, do not add it to the secondary faces
+            if indexOfFace(self.sections, face) is not None:
+                continue
+
+            i = indexOfFace(newSecondaryFaces, face)
+
+            # If the face does not exist yet, simply add it
+            # If it exists, override the previous one. As the faces are sorted, the later faces are the faces on top
+            if i is None:
+                newSecondaryFaces.append(face)
+            else:
+                newSecondaryFaces[i] = face
+
+        self.secondaryFaces = newSecondaryFaces
+
+    def filterWrongOrientedFaces(self):
+        if self.secondaryFaces:
+            self.secondaryFaces = [
+                f for f in self.secondaryFaces if f.correctlyOriented()]
+        if self.sections:
+            self.sections = [f for f in self.sections if f.correctlyOriented()]
+        if self.windows:
+            self.windows = [f for f in self.windows if f.correctlyOriented()]
 
     def sort(self):
         if self.secondaryFaces:
@@ -614,6 +689,8 @@ class Renderer:
         "Returns all svg parts we cut"
         if not self.oriented:
             self.reorient()
+            self.filterWrongOrientedFaces()
+            self.removeDuplicates()
 
         self.patterns = {}
 
@@ -687,8 +764,8 @@ if __name__ == "__main__":
         return p
 
     # Top
-    # pl = FreeCAD.Placement(
-    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
@@ -696,8 +773,8 @@ if __name__ == "__main__":
     # pl = FreeCAD.Placement(
     #    FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # Back
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
 
     # print(pl)
 
@@ -706,14 +783,14 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    render.addObjects([FreeCAD.ActiveDocument.Wall001,
-                       FreeCAD.ActiveDocument.Wall002])
+    # render.addObjects([FreeCAD.ActiveDocument.Wall001])
+    render.addObjects(FreeCAD.ActiveDocument.Objects)
     render.cut(cutplane, clip=False)
 
     parts = render.getSvgParts(0)
 
     boundBox = parts["boundBox"]
-    boundBox.adaptFromDrafts([FreeCAD.ActiveDocument.Dimension005])
+    # boundBox.adaptFromDrafts([FreeCAD.ActiveDocument.Dimension005])
 
     width = 420
     height = 297
