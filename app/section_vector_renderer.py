@@ -283,7 +283,6 @@ class Renderer:
                     self.objectShapes.append(
                         [o.Shape, color, getPatternType(o)])
 
-        print(self.objectShapes)
         self.resetFlags()
 
     def addWindows(self, objs):
@@ -324,7 +323,7 @@ class Renderer:
 
         for face in self.secondaryFaces:
             # If the face is already in a section, do not add it to the secondary faces
-            if indexOfFace(self.sections, face) is not None:
+            if not face or indexOfFace(self.sections, face) is not None:
                 continue
 
             i = indexOfFace(newSecondaryFaces, face)
@@ -341,11 +340,11 @@ class Renderer:
     def filterWrongOrientedFaces(self):
         if self.secondaryFaces:
             self.secondaryFaces = [
-                f for f in self.secondaryFaces if f.correctlyOriented()]
+                f for f in self.secondaryFaces if f and f.correctlyOriented()]
         if self.sections:
-            self.sections = [f for f in self.sections if f.correctlyOriented()]
+            self.sections = [f for f in self.sections if f and f.correctlyOriented()]
         if self.windows:
-            self.windows = [f for f in self.windows if f.correctlyOriented()]
+            self.windows = [f for f in self.windows if f and f.correctlyOriented()]
 
     def sort(self):
         if self.secondaryFaces:
@@ -783,8 +782,8 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    # render.addObjects([FreeCAD.ActiveDocument.Wall001])
-    render.addObjects(FreeCAD.ActiveDocument.Objects)
+    render.addObjects([FreeCAD.ActiveDocument.Wall, FreeCAD.ActiveDocument.Structure036,FreeCAD.ActiveDocument.Structure035, FreeCAD.ActiveDocument.Structure034, FreeCAD.ActiveDocument.Structure029])
+    # render.addObjects(FreeCAD.ActiveDocument.Objects)
     render.cut(cutplane, clip=False)
 
     parts = render.getSvgParts(0)
