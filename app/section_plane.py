@@ -418,8 +418,7 @@ class SimpleSectionPlane:
         if not self.sectionSVG:
             self.doExecute(self.Object)
 
-        template = """
-<?xml version="1.0" encoding="UTF-8"?>
+        template = """<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
      xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
