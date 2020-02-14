@@ -205,11 +205,11 @@ class FaceData:
         selfPoints = [(round(v.Point.x, 5), round(v.Point.y, 5))
                       for v in self.reorientedFace.Vertexes]
         otherPoints = [(round(v.Point.x, 5), round(v.Point.y, 5))
-                      for v in otherFace.reorientedFace.Vertexes]
+                       for v in otherFace.reorientedFace.Vertexes]
 
         if len(selfPoints) != len(otherPoints):
             return False
-        
+
         # Find the first point, that is not in the other Faces points.
         # When no point is missing, the faces can be considered as equals
         for p in selfPoints:
@@ -328,12 +328,12 @@ class Renderer:
 
             i = indexOfFace(newSecondaryFaces, face)
 
-            # If the face does not exist yet, simply add it
-            # If it exists, override the previous one. As the faces are sorted, the later faces are the faces on top
-            if i is None:
-                newSecondaryFaces.append(face)
-            else:
-                newSecondaryFaces[i] = face
+            # if the face already exists, remove it from the list
+            # Adding the new face again preserves the original face order
+            if i is not None:
+                del newSecondaryFaces[i]
+
+            newSecondaryFaces.append(face)
 
         self.secondaryFaces = newSecondaryFaces
 
@@ -342,9 +342,11 @@ class Renderer:
             self.secondaryFaces = [
                 f for f in self.secondaryFaces if f and f.correctlyOriented()]
         if self.sections:
-            self.sections = [f for f in self.sections if f and f.correctlyOriented()]
+            self.sections = [
+                f for f in self.sections if f and f.correctlyOriented()]
         if self.windows:
-            self.windows = [f for f in self.windows if f and f.correctlyOriented()]
+            self.windows = [
+                f for f in self.windows if f and f.correctlyOriented()]
 
     def sort(self):
         if self.secondaryFaces:
@@ -763,14 +765,14 @@ if __name__ == "__main__":
         return p
 
     # Top
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
     # Right
-    # pl = FreeCAD.Placement(
-    #    FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(16000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # Back
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
@@ -782,7 +784,8 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    render.addObjects([FreeCAD.ActiveDocument.Wall, FreeCAD.ActiveDocument.Structure036,FreeCAD.ActiveDocument.Structure035, FreeCAD.ActiveDocument.Structure034, FreeCAD.ActiveDocument.Structure029])
+    render.addObjects([FreeCAD.ActiveDocument.Wall100,
+                       FreeCAD.ActiveDocument.Wall015])
     # render.addObjects(FreeCAD.ActiveDocument.Objects)
     render.cut(cutplane, clip=False)
 
