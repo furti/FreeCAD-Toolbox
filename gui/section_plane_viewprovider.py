@@ -48,11 +48,12 @@ class ViewProviderSimpleSectionPlane():
         plane_length = 100000
         plane_height = 100000
 
+        # We have to divide the plane length by 2, otherwise it is double the size it was ment to be
         if hasattr(obj, "PlaneLength") and obj.PlaneLength.Value > 0:
-            plane_length = obj.PlaneLength.Value
+            plane_length = obj.PlaneLength.Value / 2
         
         if hasattr(obj, "PlaneHeight") and obj.PlaneHeight.Value > 0:
-            plane_height = obj.PlaneHeight.Value
+            plane_height = obj.PlaneHeight.Value / 2
 
         r = obj.Placement
         p1 = FreeCAD.Vector(-plane_length, -plane_height, 0)
