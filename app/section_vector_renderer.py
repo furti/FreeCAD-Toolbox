@@ -1,5 +1,6 @@
 import FreeCAD
 import math
+import re
 import Part
 import ArchCommands
 import Draft
@@ -15,12 +16,12 @@ DEFAULT_PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    x="0" y="0" width="100" height="100">
+    x="0" y="0" width="${5}" height="${5}">
         <g>
-            <rect width="100" height="100"
+            <rect width="${5}" height="${5}"
                 style="stroke:none; fill:#ffffff" />
-            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
-                  d="M0,0 l100,100" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:${0.2}; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M0,0 l${5},${5}" />
         </g>
 </pattern>
 """
@@ -29,12 +30,12 @@ INSULATION_HARD_PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    x="0" y="0" width="100" height="100">
+    x="0" y="0" width="${2.5}" height="${2.5}">
         <g>
-            <rect width="100" height="100"
+            <rect width="${2.5}" height="${2.5}"
                 style="stroke:none; fill:#ffffff" />
-            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
-                  d="M 0,0 100,25 0,50 100,75 0,100" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:${0.2}; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M 0,0 ${2.5},${0.625} 0,${1.25} ${2.5},${1.875} 0,${2.5}" />
         </g>
 </pattern>
 """
@@ -43,12 +44,12 @@ INSULATION_SOFT_PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    x="0" y="0" width="100" height="100">
+    x="0" y="0" width="${5}" height="${5}">
         <g>
-            <rect width="100" height="100"
+            <rect width="${5}" height="${5}"
                 style="stroke:none; fill:#ffffff" />
-            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
-                  d="M 25,0 75,25 25,50 75,75 25,100 M 25,0 C 25,0 0,9.9768635 0,24.999995 0,40.023126 25,50 25,50 m 0,0 C 25,50 0,59.976863 0,74.999995 0,90.023126 25,100.00001 25,100.00001 M 75,75 c 0,0 25,9.976865 25,24.999997 C 100,115.02313 75,125 75,125 m 0,-150 c 0,0 25,9.976868 25,25 0,15.023131 -25,25 -25,25 m 0,0 c 0,0 25,9.976869 25,25 0,15.023131 -25,25 -25,25" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:${0.2}; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M ${1.25},0 ${3.75},${1.25} ${1.25},${2.5} ${3.75},${3.75} ${1.25},${5} M ${1.25},0 C ${1.25},0 0,${0.5} 0,${1.25} 0,${2} ${1.25},${2.5} ${1.25},${2.5} m 0,0 C ${1.25},${2.5} 0,${3} 0,${3.75} 0,${4.5} ${1.25},${5} ${1.25},${5} M ${3.75},${3.75} c 0,0 ${1.25},${0.5} ${1.25},${1.25} C ${5},${5.75} ${3.75},${6.25} ${3.75},${6.25} m 0,-${7.5} c 0,0 ${1.25},${0.5} ${1.25},${1.25} 0,${0.75} -${1.25},${1.25} -${1.25},${1.25} m 0,0 c 0,0 ${1.25},${0.5} ${1.25},${1.25} 0,${0.75} -${1.25},${1.25} -${1.25},${1.25}" />
         </g>
 </pattern>
 """
@@ -57,12 +58,12 @@ WINDOW_PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
     patternUnits="userSpaceOnUse"
-    x="0" y="0" width="100" height="100">
+    x="0" y="0" width="${2.5}" height="${2.5}">
         <g>
-            <rect width="100" height="100"
+            <rect width="${2.5}" height="${2.5}"
                 style="stroke:none; fill:#ffffff" />
-            <path style="stroke:PATTERN_COLOR; stroke-width:10; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
-                  d="M 0,100 100,0 M 0,0 100,100" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:${0.2}; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M 0,${2.5} ${2.5},0 M 0,0 ${2.5},${2.5}" />
         </g>
 </pattern>
 """
@@ -78,6 +79,17 @@ PATTERN_TEMPLATES = {
     "INSULATION_SOFT": INSULATION_SOFT_PATTERN_TEMPLATE,
     "WINDOW": WINDOW_PATTERN_TEMPLATE
 }
+
+PATTERN_NUMBER_REGEX = re.compile(r'\$\{([0-9\.]+)\}')
+
+
+def scalePatterns(patternSVG, scale):
+    availableNumbers = set([(n, float(n)) for n in PATTERN_NUMBER_REGEX.findall(patternSVG)])
+
+    for text, n in availableNumbers:
+        patternSVG = patternSVG.replace('${' + text + '}', toNumberString(n / scale, 6))
+
+    return patternSVG
 
 
 def toNumberString(val, precision=None):
@@ -784,9 +796,9 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    render.addObjects([FreeCAD.ActiveDocument.Wall100,
-                       FreeCAD.ActiveDocument.Wall015])
-    # render.addObjects(FreeCAD.ActiveDocument.Objects)
+    # render.addObjects([FreeCAD.ActiveDocument.Wall100,
+    #                    FreeCAD.ActiveDocument.Wall015])
+    render.addObjects(FreeCAD.ActiveDocument.Objects)
     render.cut(cutplane, clip=False)
 
     parts = render.getSvgParts(0)
@@ -855,12 +867,13 @@ if __name__ == "__main__":
     </g>
 </svg>
 """
+    scale = 1/50
 
     template = template.replace(
-        "VIEWBOX_VALUES", boundBox.buildViewbox(1/50, width, height))
+        "VIEWBOX_VALUES", boundBox.buildViewbox(scale, width, height))
     template = template.replace("WIDTH", toNumberString(width))
     template = template.replace("HEIGHT", toNumberString(height))
-    template = template.replace("PATTERN_SVG", parts["patterns"])
+    template = template.replace("PATTERN_SVG", scalePatterns(parts["patterns"], scale))
     template = template.replace("SECONDARY_SVG", parts["secondaryFaces"])
     template = template.replace("SECTION_SVG", parts["sections"])
     template = template.replace("WINDOW_SVG", parts["windows"])

@@ -19,7 +19,6 @@ else:
     def QT_TRANSLATE_NOOP(ctxt, txt):
         return txt
 
-
 def looksLikeDraft(o):
     """Does this object look like a Draft shape? (flat, no solid, etc)"""
 
@@ -470,7 +469,7 @@ class SimpleSectionPlane:
             "WIDTH", toNumberString(width))
         template = template.replace(
             "HEIGHT", toNumberString(height))
-        template = template.replace("PATTERN_SVG", self.patternSVG)
+        template = template.replace("PATTERN_SVG", section_vector_renderer.scalePatterns(self.patternSVG, scale))
         template = template.replace("SECONDARY_SVG", self.secondaryFacesSVG)
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
