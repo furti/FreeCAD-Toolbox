@@ -662,7 +662,7 @@ class Renderer:
 
         for f in self.secondaryFaces:
             if f:
-                patternOpacity = 0.3
+                patternOpacity = 0.1
                 shouldHightlight = self.isInRange(
                     f.originalFace, faceHighlightDistance)
 
