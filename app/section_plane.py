@@ -477,7 +477,7 @@ class SimpleSectionPlane:
         template = template.replace("DRAFT_SVG", self.draftSvg)
         template = template.replace(
             "INFORMATION_SVG", self.renderInformation(width, height, scale))
-        template = template.replace("TEXT_FONT_SIZE", str(194))
+        template = template.replace("TEXT_FONT_SIZE", str(4 / scale))
         template = template.replace(
             "DIMENSION_STROKE_WIDTH", toNumberString(0.2 / scale))
         template = template.replace(
