@@ -26,6 +26,20 @@ DEFAULT_PATTERN_TEMPLATE = """
 </pattern>
 """
 
+WOOD_PATTERN_TEMPLATE = """
+<pattern
+    id="PATTERN_ID"
+    patternUnits="userSpaceOnUse"
+    x="0" y="0" width="${5}" height="${5}">
+        <g>
+            <rect width="${5}" height="${5}"
+                style="stroke:none; fill:#ffffff" />
+            <path style="stroke:PATTERN_COLOR; stroke-width:${0.2}; stroke-linecap:butt; stroke-linejoin:miter; fill:none; opacity:PATTERN_OPACITY" 
+                  d="M${5},0 L0,${5}" />
+        </g>
+</pattern>
+"""
+
 INSULATION_HARD_PATTERN_TEMPLATE = """
 <pattern
     id="PATTERN_ID"
@@ -74,7 +88,8 @@ PATH_TEMPLATE = """
 """
 
 PATTERN_TEMPLATES = {
-    'DEFAULT': DEFAULT_PATTERN_TEMPLATE,
+    "DEFAULT": DEFAULT_PATTERN_TEMPLATE,
+    "WOOD": WOOD_PATTERN_TEMPLATE,
     "INSULATION_HARD": INSULATION_HARD_PATTERN_TEMPLATE,
     "INSULATION_SOFT": INSULATION_SOFT_PATTERN_TEMPLATE,
     "WINDOW": WINDOW_PATTERN_TEMPLATE
