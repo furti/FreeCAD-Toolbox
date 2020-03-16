@@ -99,10 +99,12 @@ PATTERN_NUMBER_REGEX = re.compile(r'\$\{([0-9\.]+)\}')
 
 
 def scalePatterns(patternSVG, scale):
-    availableNumbers = set([(n, float(n)) for n in PATTERN_NUMBER_REGEX.findall(patternSVG)])
+    availableNumbers = set([(n, float(n))
+                            for n in PATTERN_NUMBER_REGEX.findall(patternSVG)])
 
     for text, n in availableNumbers:
-        patternSVG = patternSVG.replace('${' + text + '}', toNumberString(n / scale, 6))
+        patternSVG = patternSVG.replace(
+            '${' + text + '}', toNumberString(n / scale, 6))
 
     return patternSVG
 
@@ -248,12 +250,12 @@ class FaceData:
     def correctlyOriented(self, planeNormal):
         if not self.reorientedFace:
             return True
-        
-        faceNormal = self.reorientedFace.normalAt(0,0)
+
+        faceNormal = self.reorientedFace.normalAt(0, 0)
         angle = math.degrees(faceNormal.getAngle(planeNormal))
         angle = round(angle, DraftVecUtils.precision())
 
-        return angle == 90
+        return angle != 90
 
 
 def indexOfFace(faceList, face):
@@ -287,11 +289,9 @@ class Renderer:
 
     def resetFlags(self):
         "resets all flags of this renderer"
-        self.oriented = False
-        self.trimmed = False
+        self.duplicatesRemoved = False
         self.sorted = False
         self.iscut = False
-        self.joined = False
         self.secondaryFaces = []
         self.sections = []
         self.windows = []
@@ -324,21 +324,6 @@ class Renderer:
         if DEBUG:
             print("adding ", len(self.objects), " objects, ")
 
-    def reorient(self):
-        "reorients the faces on the WP"
-
-        if self.secondaryFaces:
-            self.secondaryFaces = [self.projectFace(
-                f) for f in self.secondaryFaces]
-        if self.sections:
-            self.sections = [self.projectFace(f) for f in self.sections]
-        if self.windows:
-            self.windows = [self.projectFace(f) for f in self.windows]
-        if self.hiddenEdges:
-            self.hiddenEdges = [self.projectEdge(e) for e in self.hiddenEdges]
-
-        self.oriented = True
-
     def removeDuplicates(self):
         if not self.secondaryFaces:
             return
@@ -360,19 +345,6 @@ class Renderer:
             newSecondaryFaces.append(face)
 
         self.secondaryFaces = newSecondaryFaces
-
-    def filterWrongOrientedFaces(self):
-        planeNormal = self.wp.getNormal()
-
-        if self.secondaryFaces:
-            self.secondaryFaces = [
-                f for f in self.secondaryFaces if f and f.correctlyOriented(planeNormal)]
-        if self.sections:
-            self.sections = [
-                f for f in self.sections if f and f.correctlyOriented(planeNormal)]
-        if self.windows:
-            self.windows = [
-                f for f in self.windows if f and f.correctlyOriented(planeNormal)]
 
     def sort(self):
         if self.secondaryFaces:
@@ -467,11 +439,16 @@ class Renderer:
 
         shps = []
 
+        # self.reorient()
+        # self.filterWrongOrientedFaces()
+
         for sh in shapes:
             shps.append(sh[0])
 
         cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
             cutplane, shps, clip=clip)
+        planeNormal = getProj(self.wp.getNormal(), self.wp)
+        planeNormal.normalize()
 
         if not cutvolume:
             cutface = cutplane
@@ -492,13 +469,18 @@ class Renderer:
                     objectShapes.append([c]+sh[1:])
 
                     for f in c.Faces:
-                        if DraftGeomUtils.isCoplanar([f, cutface]):
-                            sections.append(FaceData(f, sh[1], sh[2]))
-                        else:
-                            faces.append(FaceData(f, sh[1], sh[2]))
+                        faceData = FaceData(f, sh[1], sh[2])
+                        faceData = self.projectFace(faceData)
+
+                        if faceData.correctlyOriented(planeNormal):
+                            if DraftGeomUtils.isCoplanar([f, cutface]):
+                                sections.append(faceData)
+                            else:
+                                faces.append(faceData)
 
                     if hidden:
                         c = sol.cut(invcutvolume)
+                        # self.projectEdge(e)
                         self.hiddenEdges.extend(c.Edges)
 
         if clipDepth > 0:
@@ -545,10 +527,8 @@ class Renderer:
         self.sort()
 
         self.iscut = True
-        self.oriented = False
-        self.trimmed = False
-        self.sorted = False
-        self.joined = False
+        self.sorted = True
+        self.duplicatesRemoved = False
 
         if DEBUG:
             print("\n\n======> Finished cut\n\n")
@@ -714,10 +694,10 @@ class Renderer:
 
     def getSvgParts(self, faceHighlightDistance=0):
         "Returns all svg parts we cut"
-        if not self.oriented:
-            self.reorient()
-            self.filterWrongOrientedFaces()
+        if not self.duplicatesRemoved:
             self.removeDuplicates()
+
+            self.duplicatesRemoved = True
 
         self.patterns = {}
 
@@ -802,7 +782,7 @@ if __name__ == "__main__":
     # Back
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
-    #custom
+    # custom
     pl = FreeCAD.Placement(
         FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # print(pl)
@@ -812,9 +792,9 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    # render.addObjects([FreeCAD.ActiveDocument.Roof001,
-    #                    FreeCAD.ActiveDocument.Wall009])
-    render.addObjects([FreeCAD.ActiveDocument.Box, FreeCAD.ActiveDocument.Wall003])
+    # render.addObjects([FreeCAD.ActiveDocument.Wall001])
+    render.addObjects([FreeCAD.ActiveDocument.Box,
+                       FreeCAD.ActiveDocument.Wall003])
     # render.addObjects(FreeCAD.ActiveDocument.Objects)
     render.cut(cutplane, clip=False)
 
@@ -890,7 +870,8 @@ if __name__ == "__main__":
         "VIEWBOX_VALUES", boundBox.buildViewbox(scale, width, height))
     template = template.replace("WIDTH", toNumberString(width))
     template = template.replace("HEIGHT", toNumberString(height))
-    template = template.replace("PATTERN_SVG", scalePatterns(parts["patterns"], scale))
+    template = template.replace(
+        "PATTERN_SVG", scalePatterns(parts["patterns"], scale))
     template = template.replace("SECONDARY_SVG", parts["secondaryFaces"])
     template = template.replace("SECTION_SVG", parts["sections"])
     template = template.replace("WINDOW_SVG", parts["windows"])
