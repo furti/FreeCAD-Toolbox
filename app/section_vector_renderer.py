@@ -245,18 +245,15 @@ class FaceData:
 
         return True
 
-    def correctlyOriented(self):
+    def correctlyOriented(self, planeNormal):
         if not self.reorientedFace:
             return True
+        
+        faceNormal = self.reorientedFace.normalAt(0,0)
+        angle = math.degrees(faceNormal.getAngle(planeNormal))
+        angle = round(angle, DraftVecUtils.precision())
 
-        yValues = set([round(v.Point.y, 5)
-                       for v in self.reorientedFace.Vertexes])
-        xValues = set([round(v.Point.x, 5)
-                       for v in self.reorientedFace.Vertexes])
-
-        # When all y values or x for the vertices are the same, the face will be a single line in the SVG. So we can skip it entirely
-
-        return len(yValues) > 1 and len(xValues) > 1
+        return angle == 90
 
 
 def indexOfFace(faceList, face):
@@ -365,15 +362,17 @@ class Renderer:
         self.secondaryFaces = newSecondaryFaces
 
     def filterWrongOrientedFaces(self):
+        planeNormal = self.wp.getNormal()
+
         if self.secondaryFaces:
             self.secondaryFaces = [
-                f for f in self.secondaryFaces if f and f.correctlyOriented()]
+                f for f in self.secondaryFaces if f and f.correctlyOriented(planeNormal)]
         if self.sections:
             self.sections = [
-                f for f in self.sections if f and f.correctlyOriented()]
+                f for f in self.sections if f and f.correctlyOriented(planeNormal)]
         if self.windows:
             self.windows = [
-                f for f in self.windows if f and f.correctlyOriented()]
+                f for f in self.windows if f and f.correctlyOriented(planeNormal)]
 
     def sort(self):
         if self.secondaryFaces:
@@ -798,12 +797,14 @@ if __name__ == "__main__":
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
     # Right
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(16000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(16000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # Back
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
-
+    #custom
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # print(pl)
 
     cutplane = calculateCutPlane(pl)
@@ -811,9 +812,10 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    # render.addObjects([FreeCAD.ActiveDocument.Wall100,
-    #                    FreeCAD.ActiveDocument.Wall015])
-    render.addObjects(FreeCAD.ActiveDocument.Objects)
+    # render.addObjects([FreeCAD.ActiveDocument.Roof001,
+    #                    FreeCAD.ActiveDocument.Wall009])
+    render.addObjects([FreeCAD.ActiveDocument.Box, FreeCAD.ActiveDocument.Wall003])
+    # render.addObjects(FreeCAD.ActiveDocument.Objects)
     render.cut(cutplane, clip=False)
 
     parts = render.getSvgParts(0)
