@@ -19,6 +19,7 @@ else:
     def QT_TRANSLATE_NOOP(ctxt, txt):
         return txt
 
+
 def looksLikeDraft(o):
     """Does this object look like a Draft shape? (flat, no solid, etc)"""
 
@@ -82,12 +83,13 @@ def filterObjects(includeList, excludeList):
     return objectsToProcess
 
 
-def groupObjects(objectsToProcess, cutplane):
+def groupObjects(objectsToProcess, cutplane, obj):
     groups = {
         "spaces": [],
         "drafts": [],
         "windows": [],
-        "objects": []
+        "objects": [],
+        "sectionCuts": []
     }
 
     typesToIgnore = ["BuildingPart", "Group"]
@@ -108,6 +110,10 @@ def groupObjects(objectsToProcess, cutplane):
             groups["windows"].append(o)
         elif not objectType in typesToIgnore:
             groups["objects"].append(o)
+
+    if hasattr(obj, "SectionCuts"):
+        for sc in obj.SectionCuts:
+            groups["sectionCuts"].append(sc.Proxy.calculateCutPlane(sc))
 
     return groups
 
@@ -206,17 +212,14 @@ def getDimensionSvg(d, plane):
     return dimensionSvg
 
 
-def getDraftSvg(objects, placement):
+def getDraftSvg(objects, workingPlane):
     svg = ""
-
-    wp = WorkingPlane.plane()
-    wp.setFromPlacement(placement, rebase=True)
 
     for d in objects:
         objectType = Draft.getType(d)
 
         if objectType == "Dimension":
-            svg += getDimensionSvg(d, wp)
+            svg += getDimensionSvg(d, workingPlane)
         else:
             print("Unsupported object type " + objectType)
 
@@ -238,6 +241,7 @@ class SimpleSectionPlane:
         self.secondaryFacesSVG = ''
         self.windowSVG = ''
         self.draftSvg = ''
+        self.sectionCutSvg = ''
 
         if not "Placement" in pl:
             obj.addProperty("App::PropertyPlacement", "Placement", "SectionPlane", QT_TRANSLATE_NOOP(
@@ -248,12 +252,16 @@ class SimpleSectionPlane:
                 "App::Property", "The shape of this object"))
 
         if not "IncludeObjects" in pl:
-            obj.addProperty("App::PropertyLinkList", "IncludeObjects", "SectionPlane", QT_TRANSLATE_NOOP(
+            obj.addProperty("App::PropertyLinkList", "IncludeObjects", "Objects", QT_TRANSLATE_NOOP(
                 "App::Property", "The objects that will be considered by this section plane"))
 
         if not "ExcludeObjects" in pl:
-            obj.addProperty("App::PropertyLinkList", "ExcludeObjects", "SectionPlane", QT_TRANSLATE_NOOP(
+            obj.addProperty("App::PropertyLinkList", "ExcludeObjects", "Objects", QT_TRANSLATE_NOOP(
                 "App::Property", "The objects that will be excluded by this section plane, even if they are matched by the IncludeObjects list"))
+
+        if not "SectionCuts" in pl:
+            obj.addProperty("App::PropertyLinkList", "SectionCuts", "Objects", QT_TRANSLATE_NOOP(
+                "App::Property", "A list of secion cuts to display"))
 
         if not "TargetFile" in pl:
             obj.addProperty("App::PropertyFile", "TargetFile",
@@ -317,7 +325,7 @@ class SimpleSectionPlane:
         if len(objectsToProcess) == 0:
             return
 
-        groups = groupObjects(objectsToProcess, cutplane)
+        groups = groupObjects(objectsToProcess, cutplane, obj)
         render = self.render(obj, groups, cutplane)
 
         self.buildSvgParts(obj, render, groups)
@@ -328,11 +336,15 @@ class SimpleSectionPlane:
 
         parts = render.getSvgParts(faceHighlightDistance.Value)
 
+        wp = WorkingPlane.plane()
+        wp.setFromPlacement(obj.Placement, rebase=True)
+
         self.sectionSVG = parts["sections"]
         self.secondaryFacesSVG = parts["secondaryFaces"]
         self.windowSVG = parts["windows"]
         self.patternSVG = parts["patterns"]
-        self.draftSvg = getDraftSvg(groups["drafts"], obj.Placement)
+        self.draftSvg = getDraftSvg(groups["drafts"], wp)
+        self.sectionCutSvg = parts["sectionCuts"]
         self.boundBox = parts["boundBox"]
 
         self.boundBox.adaptFromDrafts(groups["drafts"])
@@ -343,6 +355,7 @@ class SimpleSectionPlane:
         render = section_vector_renderer.Renderer(obj.Placement)
         render.addObjects(groups["objects"])
         render.addWindows(groups["windows"])
+        render.addSectionCuts(groups["sectionCuts"])
         render.cut(cutplane, clip=shouldClip, clipDepth=obj.PlaneDepth.Value)
 
         return render
@@ -458,6 +471,10 @@ class SimpleSectionPlane:
                 DRAFT_SVG
             </g>
 
+            <g id="section_cuts">
+                SECTION_CUT_SVG
+            </g>
+
             <g id="information">
                 INFORMATION_SVG
             </g>
@@ -469,11 +486,13 @@ class SimpleSectionPlane:
             "WIDTH", toNumberString(width))
         template = template.replace(
             "HEIGHT", toNumberString(height))
-        template = template.replace("PATTERN_SVG", section_vector_renderer.scalePatterns(self.patternSVG, scale))
+        template = template.replace(
+            "PATTERN_SVG", section_vector_renderer.scalePatterns(self.patternSVG, scale))
         template = template.replace("SECONDARY_SVG", self.secondaryFacesSVG)
         template = template.replace("SECTION_SVG", self.sectionSVG)
         template = template.replace("WINDOW_SVG", self.windowSVG)
         template = template.replace("DRAFT_SVG", self.draftSvg)
+        template = template.replace("SECTION_CUT_SVG", self.sectionCutSvg)
         template = template.replace(
             "INFORMATION_SVG", self.renderInformation(width, height, scale))
         template = template.replace("TEXT_FONT_SIZE", str(4 / scale))
@@ -487,6 +506,7 @@ class SimpleSectionPlane:
             "SECONDARY_STROKE_WIDTH", toNumberString(0.1 / scale))
         template = template.replace(
             "VIEWBOX_VALUES", self.boundBox.buildViewbox(scale, width, height))
+        template = template.replace("SECTION_CUT_STROKE_WIDTH", toNumberString(0.2 / scale))
 
         return template
 
@@ -499,10 +519,14 @@ if __name__ == "__main__":
             "App::FeaturePython", "SectionPlane")
         SimpleSectionPlane(simpleSectionPlaneObject)
 
+        otherSectionPlaneObject = FreeCAD.ActiveDocument.addObject(
+            "App::FeaturePython", "SectionPlane")
+        SimpleSectionPlane(otherSectionPlaneObject)
+
         # simpleSectionPlaneObject.FaceHighlightDistance = 6600
 
         simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.Floor001]
+            FreeCAD.ActiveDocument.Structure]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall003]
         # simpleSectionPlaneObject.IncludeObjects = [
@@ -512,6 +536,8 @@ if __name__ == "__main__":
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall003, FreeCAD.ActiveDocument.Dimension004]
 
+        simpleSectionPlaneObject.SectionCuts = [otherSectionPlaneObject]
+
         # Top
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
             Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
@@ -519,10 +545,14 @@ if __name__ == "__main__":
         # simpleSectionPlaneObject.Placement = FreeCAD.Placement(
         #     Vector(0, -1000, 0), FreeCAD.Rotation(Vector(1, 0, 0), 90))
         # Right
-        simpleSectionPlaneObject.Placement = FreeCAD.Placement(
+        # simpleSectionPlaneObject.Placement = FreeCAD.Placement(
+        #     FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+
+        # Right
+        otherSectionPlaneObject.Placement = FreeCAD.Placement(
             FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
 
-        simpleSectionPlaneObject.PlaneLength = 2000
+        # simpleSectionPlaneObject.PlaneLength = 2000
 
         FreeCAD.ActiveDocument.recompute()
 

@@ -87,6 +87,16 @@ PATH_TEMPLATE = """
       style="fill:PATH_FILL; fill-rule: evenodd; stroke-width:STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:none;"/>
 """
 
+SECTION_CUT_TEMPLATE = """
+<g stroke-width="STROKE_WIDTH"
+   style="stroke-width:STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:105,26,13,26;stroke-dashoffset:0;"
+   stroke="#000000">
+    <path d="PATH_DATA" />
+    <path d="ARROW_START" transform="rotate(ARROW_START_ROTATION)"/>
+    <path d="ARROW_END" transform="rotate(ARROW_END_ROTATION)"/>
+</g>
+"""
+
 PATTERN_TEMPLATES = {
     "DEFAULT": DEFAULT_PATTERN_TEMPLATE,
     "WOOD": WOOD_PATTERN_TEMPLATE,
@@ -138,6 +148,25 @@ def getPatternType(o):
         return None
 
     return mat["PatternType"]
+
+
+def isEdgeOnPlane(edge, plane):
+    precision = DraftVecUtils.precision()
+    planeBase = plane.CenterOfMass
+    planeNormal = plane.normalAt(0.5, 0.5)
+
+    points = [v.Point for v in edge.Vertexes]
+
+    for p in points:
+        distance = p.distanceToPlane(planeBase, planeNormal)
+
+        if distance < 0:
+            distance = distance * -1
+
+        if distance > precision:
+            return False
+
+    return True
 
 
 class BoundBox():
@@ -285,6 +314,7 @@ class Renderer:
         "removes all faces from this renderer"
         self.objectShapes = []
         self.windowShapes = []
+        self.sectionCutShapes = []
         self.resetFlags()
 
     def resetFlags(self):
@@ -296,6 +326,7 @@ class Renderer:
         self.sections = []
         self.windows = []
         self.hiddenEdges = []
+        self.sectionCuts = []
 
     def addObjects(self, objs):
         "add objects to this renderer"
@@ -321,8 +352,13 @@ class Renderer:
 
         self.resetFlags()
 
-        if DEBUG:
-            print("adding ", len(self.objects), " objects, ")
+    def addSectionCuts(self, sections):
+        "add objects to this renderer"
+
+        for s in sections:
+            self.sectionCutShapes.append(s)
+
+        self.resetFlags()
 
     def removeDuplicates(self):
         if not self.secondaryFaces:
@@ -347,16 +383,22 @@ class Renderer:
         self.secondaryFaces = newSecondaryFaces
 
     def sort(self):
-        if self.secondaryFaces:
-            self.sortFaces(self.secondaryFaces)
-        if self.sections:
-            self.sortFaces(self.sections)
-        if self.windows:
-            self.sortFaces(self.windows)
-        if self.hiddenEdges:
-            self.sortFaces(self.hiddenEdges)
+        normal = self.wp.getNormal()
 
-    def sortFaces(self, faces):
+        normalx = round(normal.x, 3)
+        normaly = round(normal.y, 3)
+        normalz = round(normal.z, 3)
+
+        if self.secondaryFaces:
+            self.sortFaces(self.secondaryFaces, normalx, normaly, normalz)
+        if self.sections:
+            self.sortFaces(self.sections, normalx, normaly, normalz)
+        if self.windows:
+            self.sortFaces(self.windows, normalx, normaly, normalz)
+        if self.hiddenEdges:
+            self.sortFaces(self.hiddenEdges, normalx, normaly, normalz)
+
+    def sortFaces(self, faces, normalx, normaly, normalz):
         def sortX(entry):
             shape = entry.originalFace
 
@@ -371,12 +413,6 @@ class Renderer:
             shape = entry.originalFace
 
             return shape.BoundBox.ZMax
-
-        normal = self.wp.getNormal()
-
-        normalx = round(normal.x, 3)
-        normaly = round(normal.y, 3)
-        normalz = round(normal.z, 3)
 
         if normalz > 0:
             faces.sort(key=sortZ)
@@ -471,6 +507,8 @@ class Renderer:
                     for f in c.Faces:
                         faceData = FaceData(f, sh[1], sh[2])
                         faceData = self.projectFace(faceData)
+                        # TODO: Create temporary face list and filter duplicate faces
+                        # Do isCoplanar check later on, when duplicate faces are removed
 
                         if faceData.correctlyOriented(planeNormal):
                             if DraftGeomUtils.isCoplanar([f, cutface]):
@@ -488,6 +526,33 @@ class Renderer:
                 f.originalFace, clipDepth)]
 
         return (objectShapes, sections, faces)
+
+    def doCutSectionCuts(self, cutplane, sectionCutShapes):
+        edges = []
+        cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
+            cutplane, sectionCutShapes, clip=False)
+
+        if not cutvolume:
+            cutface = cutplane
+            cutnormal = cutplane.normalAt(0.5, 0.5)
+            cutvolume = cutplane.extrude(cutnormal)
+            cutnormal = cutnormal.negative()
+            invcutvolume = cutplane.extrude(cutnormal)
+
+        if DEBUG:
+            print('SectionCuts cutface: %s, cutvolume: %s, invcutvolume: %s' %
+                  (cutface, cutvolume, invcutvolume))
+
+        if cutface and cutvolume:
+            for sh in sectionCutShapes:
+                c = sh.cut(cutvolume)
+                normal = sh.normalAt(0.5, 0.5)
+
+                for e in c.Edges:
+                    if isEdgeOnPlane(e, cutplane):
+                        edges.append((e, normal))
+
+        return edges
 
     def cut(self, cutplane, hidden=False, clip=False, clipDepth=0):
         "Cuts through the objectShapes with a given cut plane and builds section faces"
@@ -523,6 +588,16 @@ class Renderer:
 
             if DEBUG:
                 print("Built ", len(self.sections), " windows")
+
+        if not self.sectionCutShapes:
+            if DEBUG:
+                print("No objects to make sectionCuts")
+        else:
+            self.sectionCuts = self.doCutSectionCuts(
+                cutplane, self.sectionCutShapes)
+
+            if DEBUG:
+                print("Built ", len(self.sectionCuts), " sectionCuts")
 
         self.sort()
 
@@ -628,6 +703,55 @@ class Renderer:
 
         return sectionsvg
 
+    def getSectionCutSvg(self, linewidth):
+        svg = ''
+        arrowSize = 100
+        referenceAxis = FreeCAD.Vector(0, -1, 0)
+
+        def arrowPath(basePoint):
+            baseX = basePoint.x
+            baseY = -basePoint.y
+
+            baseXString = toNumberString(baseX)
+            baseYString = toNumberString(baseY)
+
+            return "M %s %s L %s %s L %s %s Z" % (toNumberString(baseX - arrowSize), baseYString, toNumberString(baseX + arrowSize), baseYString, baseXString, toNumberString(baseY + arrowSize))
+
+        for s in self.sectionCuts:
+            edge = s[0]
+            normal = s[1]
+            normal = normal.negative()
+
+            pathdata = self.getPathData(edge)
+            arrowRotation = toNumberString(
+                math.degrees(normal.getAngle(referenceAxis)))
+            start = edge.Vertexes[0].Point
+            end = edge.Vertexes[1].Point
+
+            print(normal)
+            print(referenceAxis)
+            print(arrowRotation)
+
+            startx = toNumberString(start.x)
+            starty = toNumberString(-start.y)
+            endx = toNumberString(end.x)
+            endy = toNumberString(-end.y)
+            arrowStart = arrowPath(start)
+            arrowEnd = arrowPath(end)
+
+            current = SECTION_CUT_TEMPLATE.replace("PATH_DATA", pathdata)
+            current = current.replace("STROKE_WIDTH", str(linewidth))
+            current = current.replace(
+                "ARROW_START_ROTATION", '%s %s %s' % (arrowRotation, startx, starty))
+            current = current.replace(
+                "ARROW_END_ROTATION", '%s %s %s' % (arrowRotation, endx, endy))
+            current = current.replace("ARROW_START", arrowStart)
+            current = current.replace("ARROW_END", arrowEnd)
+
+            svg += current + "\n"
+
+        return svg
+
     def getWindowSVG(self, linewidth):
         windowsvg = ''
 
@@ -706,7 +830,7 @@ class Renderer:
         secondaryFacesSvg = self.getSecondaryFacesSVG(
             "SECONDARY_STROKE_WIDTH", faceHighlightDistance, "SECTION_STROKE_WIDTH")
         patternSvg = self.getPatternSVG()
-
+        sectionCutSvg = self.getSectionCutSvg("SECTION_CUT_STROKE_WIDTH")
         boundBox = self.buildBoundBox()
 
         return {
@@ -714,7 +838,8 @@ class Renderer:
             "sections": sectionSvg,
             "secondaryFaces": secondaryFacesSvg,
             "windows": windowSvg,
-            "boundBox": boundBox
+            "boundBox": boundBox,
+            "sectionCuts": sectionCutSvg
         }
 
     def buildBoundBox(self):
@@ -732,6 +857,8 @@ class Renderer:
         if self.hiddenEdges:
             boundBox.adaptFromShapes(
                 [f.reorientedFace for f in self.hiddenEdges if f])
+        if self.sectionCuts:
+            boundBox.adaptFromShapes([s[0] for s in self.sectionCuts])
 
         return boundBox
 
@@ -769,10 +896,14 @@ if __name__ == "__main__":
         # Part.show(p)
 
         return p
+    
+    def sectionPlaneCutPlane(sectionPlane):
+        return sectionPlane.Proxy.calculateCutPlane(sectionPlane)
+        
 
     # Top
-    # pl = FreeCAD.Placement(
-    #     FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
@@ -783,19 +914,27 @@ if __name__ == "__main__":
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
     # custom
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # print(pl)
 
     cutplane = calculateCutPlane(pl)
+
+    # Right
+    # opl = FreeCAD.Placement(
+    #     FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+    # otherPlane = calculateCutPlane(opl)
 
     DEBUG = True
 
     render = Renderer(pl)
     # render.addObjects([FreeCAD.ActiveDocument.Wall001])
-    render.addObjects([FreeCAD.ActiveDocument.Box,
-                       FreeCAD.ActiveDocument.Wall003])
+    # render.addObjects([FreeCAD.ActiveDocument.Box,
+    #                    FreeCAD.ActiveDocument.Wall003])
     # render.addObjects(FreeCAD.ActiveDocument.Objects)
+
+    render.addSectionCuts([sectionPlaneCutPlane(FreeCAD.ActiveDocument.SectionPlane026), sectionPlaneCutPlane(FreeCAD.ActiveDocument.SectionPlane027)])
+
     render.cut(cutplane, clip=False)
 
     parts = render.getSvgParts(0)
@@ -836,7 +975,7 @@ if __name__ == "__main__":
         inkscape:groupmode="layer"
         id="layer1">
 
-        <g i="everything">
+        <g id="everything">
             <g id="patterns">
                 PATTERN_SVG
             </g>
@@ -857,6 +996,10 @@ if __name__ == "__main__":
                 DRAFT_SVG
             </g>
 
+            <g id="section_cuts">
+                SECTION_CUT_SVG
+            </g>
+
             <g id="information">
                 INFORMATION_SVG
             </g>
@@ -875,10 +1018,12 @@ if __name__ == "__main__":
     template = template.replace("SECONDARY_SVG", parts["secondaryFaces"])
     template = template.replace("SECTION_SVG", parts["sections"])
     template = template.replace("WINDOW_SVG", parts["windows"])
+    template = template.replace("SECTION_CUT_SVG", parts["sectionCuts"])
     template = template.replace("TEXT_FONT_SIZE", str(240))
     template = template.replace("SECTION_STROKE_WIDTH", str(3))
     template = template.replace("WINDOW_STROKE_WIDTH", str(1))
     template = template.replace("SECONDARY_STROKE_WIDTH", str(1))
+    template = template.replace("SECTION_CUT_STROKE_WIDTH", str(0.05 / scale))
 
     file_object = open(
         "C:\\Meine Daten\\freecad\\samples\\SectionPlane\\Export.svg", "w")
