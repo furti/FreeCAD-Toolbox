@@ -94,7 +94,19 @@ SECTION_CUT_TEMPLATE = """
     <path d="PATH_DATA" />
     <path d="ARROW_START" transform="rotate(ARROW_START_ROTATION)"/>
     <path d="ARROW_END" transform="rotate(ARROW_END_ROTATION)"/>
+    TEXT_START
+    TEXT_END
 </g>
+"""
+
+TEXT_TEMPLATE = """
+<text
+        x="TEXT_POSITION_X"
+        y="TEXT_POSITION_Y"
+        style="font-size:TEXT_FONT_SIZE;font-family:Arial;letter-spacing:0px;word-spacing:0px;fill:#000000;text-anchor:middle;text-align:center;stroke:none;"
+        transform="rotate(TEXT_ROTATION)">
+            TEXT_CONTENT
+</text>
 """
 
 PATTERN_TEMPLATES = {
@@ -529,8 +541,10 @@ class Renderer:
 
     def doCutSectionCuts(self, cutplane, sectionCutShapes):
         edges = []
+        shapes = [s[0] for s in sectionCutShapes]
+
         cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
-            cutplane, sectionCutShapes, clip=False)
+            cutplane, shapes, clip=False)
 
         if not cutvolume:
             cutface = cutplane
@@ -544,13 +558,14 @@ class Renderer:
                   (cutface, cutvolume, invcutvolume))
 
         if cutface and cutvolume:
-            for sh in sectionCutShapes:
+            for s in sectionCutShapes:
+                sh = s[0]
                 c = sh.cut(cutvolume)
                 normal = sh.normalAt(0.5, 0.5)
 
                 for e in c.Edges:
                     if isEdgeOnPlane(e, cutplane):
-                        edges.append((e, normal))
+                        edges.append((e, normal, s[1]))
 
         return edges
 
@@ -708,45 +723,63 @@ class Renderer:
         arrowSize = 100
         referenceAxis = FreeCAD.Vector(0, -1, 0)
 
+        def rotation(x, y, angle):
+            angleString = toNumberString(angle)
+            xString = toNumberString(x)
+            yString = toNumberString(y)
+
+            return '%s %s %s' % (angleString, xString, yString)
+
         def arrowPath(basePoint):
             baseX = basePoint.x
             baseY = -basePoint.y
-
             baseXString = toNumberString(baseX)
             baseYString = toNumberString(baseY)
 
             return "M %s %s L %s %s L %s %s Z" % (toNumberString(baseX - arrowSize), baseYString, toNumberString(baseX + arrowSize), baseYString, baseXString, toNumberString(baseY + arrowSize))
+        
+        def text(basePoint, normal, angle, text):
+            offset = FreeCAD.Vector(normal.x, normal.y, normal.z).multiply(100)
+            actualBase = FreeCAD.Vector(basePoint.x, basePoint.y, basePoint.z).sub(offset)
+            baseX = actualBase.x
+            baseY = -actualBase.y
+            baseXString = toNumberString(baseX)
+            baseYString = toNumberString(baseY)
+
+            svg = TEXT_TEMPLATE.replace("TEXT_POSITION_X", baseXString)
+            svg = svg.replace("TEXT_POSITION_Y", baseYString)
+            svg = svg.replace("TEXT_CONTENT", text)
+            svg = svg.replace("TEXT_ROTATION", rotation(baseX, baseY, angle))
+
+            return svg
 
         for s in self.sectionCuts:
             edge = s[0]
             normal = s[1]
             normal = normal.negative()
+            label = s[2]
 
             pathdata = self.getPathData(edge)
-            arrowRotation = toNumberString(
-                math.degrees(normal.getAngle(referenceAxis)))
+            rotationAngle = math.degrees(normal.getAngle(referenceAxis))
             start = edge.Vertexes[0].Point
             end = edge.Vertexes[1].Point
 
-            print(normal)
-            print(referenceAxis)
-            print(arrowRotation)
-
-            startx = toNumberString(start.x)
-            starty = toNumberString(-start.y)
-            endx = toNumberString(end.x)
-            endy = toNumberString(-end.y)
             arrowStart = arrowPath(start)
             arrowEnd = arrowPath(end)
+
+            textStart = text(start, normal, rotationAngle, label)
+            textEnd = text(end, normal, rotationAngle, label)
 
             current = SECTION_CUT_TEMPLATE.replace("PATH_DATA", pathdata)
             current = current.replace("STROKE_WIDTH", str(linewidth))
             current = current.replace(
-                "ARROW_START_ROTATION", '%s %s %s' % (arrowRotation, startx, starty))
+                "ARROW_START_ROTATION", rotation(start.x, -start.y, rotationAngle))
             current = current.replace(
-                "ARROW_END_ROTATION", '%s %s %s' % (arrowRotation, endx, endy))
+                "ARROW_END_ROTATION", rotation(end.x, -end.y, rotationAngle))
             current = current.replace("ARROW_START", arrowStart)
             current = current.replace("ARROW_END", arrowEnd)
+            current = current.replace("TEXT_START", textStart)
+            current = current.replace("TEXT_END", textEnd)
 
             svg += current + "\n"
 
@@ -898,7 +931,9 @@ if __name__ == "__main__":
         return p
     
     def sectionPlaneCutPlane(sectionPlane):
-        return sectionPlane.Proxy.calculateCutPlane(sectionPlane)
+        sectionCutCutPlane = sectionPlane.Proxy.calculateCutPlane(sectionPlane)
+
+        return (sectionCutCutPlane, sectionPlane.Label)
         
 
     # Top

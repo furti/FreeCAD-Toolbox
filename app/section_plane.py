@@ -113,7 +113,7 @@ def groupObjects(objectsToProcess, cutplane, obj):
 
     if hasattr(obj, "SectionCuts"):
         for sc in obj.SectionCuts:
-            groups["sectionCuts"].append(sc.Proxy.calculateCutPlane(sc))
+            groups["sectionCuts"].append((sc.Proxy.calculateCutPlane(sc), sc.Label))
 
     return groups
 
