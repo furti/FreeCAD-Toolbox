@@ -298,6 +298,11 @@ class FaceData:
 
         return angle != 90
 
+class SectionCutData:
+    def __init__(self, face, text):
+        self.face = face
+        self.text = text
+
 
 def indexOfFace(faceList, face):
     if not faceList:
@@ -368,7 +373,10 @@ class Renderer:
         "add objects to this renderer"
 
         for s in sections:
-            self.sectionCutShapes.append(s)
+            sectionCutCutPlane = s.Proxy.calculateCutPlane(s)
+            data = SectionCutData(sectionCutCutPlane, s.Label)
+
+            self.sectionCutShapes.append(data)
 
         self.resetFlags()
 
@@ -541,7 +549,7 @@ class Renderer:
 
     def doCutSectionCuts(self, cutplane, sectionCutShapes):
         edges = []
-        shapes = [s[0] for s in sectionCutShapes]
+        shapes = [s.face for s in sectionCutShapes]
 
         cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
             cutplane, shapes, clip=False)
@@ -559,13 +567,13 @@ class Renderer:
 
         if cutface and cutvolume:
             for s in sectionCutShapes:
-                sh = s[0]
+                sh = s.face
                 c = sh.cut(cutvolume)
                 normal = sh.normalAt(0.5, 0.5)
 
                 for e in c.Edges:
                     if isEdgeOnPlane(e, cutplane):
-                        edges.append((e, normal, s[1]))
+                        edges.append((e, normal, s.text))
 
         return edges
 
@@ -929,12 +937,6 @@ if __name__ == "__main__":
         # Part.show(p)
 
         return p
-    
-    def sectionPlaneCutPlane(sectionPlane):
-        sectionCutCutPlane = sectionPlane.Proxy.calculateCutPlane(sectionPlane)
-
-        return (sectionCutCutPlane, sectionPlane.Label)
-        
 
     # Top
     pl = FreeCAD.Placement(
@@ -968,7 +970,7 @@ if __name__ == "__main__":
     #                    FreeCAD.ActiveDocument.Wall003])
     # render.addObjects(FreeCAD.ActiveDocument.Objects)
 
-    render.addSectionCuts([sectionPlaneCutPlane(FreeCAD.ActiveDocument.SectionPlane026), sectionPlaneCutPlane(FreeCAD.ActiveDocument.SectionPlane027)])
+    render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
 
     render.cut(cutplane, clip=False)
 

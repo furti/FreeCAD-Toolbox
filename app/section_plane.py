@@ -111,10 +111,6 @@ def groupObjects(objectsToProcess, cutplane, obj):
         elif not objectType in typesToIgnore:
             groups["objects"].append(o)
 
-    if hasattr(obj, "SectionCuts"):
-        for sc in obj.SectionCuts:
-            groups["sectionCuts"].append((sc.Proxy.calculateCutPlane(sc), sc.Label))
-
     return groups
 
 
@@ -355,7 +351,7 @@ class SimpleSectionPlane:
         render = section_vector_renderer.Renderer(obj.Placement)
         render.addObjects(groups["objects"])
         render.addWindows(groups["windows"])
-        render.addSectionCuts(groups["sectionCuts"])
+        render.addSectionCuts(self.SectionCuts)
         render.cut(cutplane, clip=shouldClip, clipDepth=obj.PlaneDepth.Value)
 
         return render
