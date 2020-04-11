@@ -351,7 +351,7 @@ class SimpleSectionPlane:
         render = section_vector_renderer.Renderer(obj.Placement)
         render.addObjects(groups["objects"])
         render.addWindows(groups["windows"])
-        render.addSectionCuts(self.SectionCuts)
+        render.addSectionCuts(obj.SectionCuts)
         render.cut(cutplane, clip=shouldClip, clipDepth=obj.PlaneDepth.Value)
 
         return render
