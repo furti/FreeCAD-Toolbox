@@ -303,6 +303,13 @@ class SectionCutData:
         self.face = face
         self.text = text
 
+class CutResult:
+    def __init__(self, objectShapes, sections, faces, cutvolume):
+        self.objectShapes = objectShapes
+        self.sections = sections
+        self.faces = faces
+        self.cutvolume = cutvolume
+
 
 def indexOfFace(faceList, face):
     if not faceList:
@@ -545,7 +552,7 @@ class Renderer:
             faces = [f for f in faces if self.isInRange(
                 f.originalFace, clipDepth)]
 
-        return (objectShapes, sections, faces)
+        return CutResult(objectShapes, sections, faces, cutvolume)
 
     def doCutSectionCuts(self, cutplane, sectionCutShapes):
         edges = []
@@ -589,12 +596,12 @@ class Renderer:
             if DEBUG:
                 print("No objects to make sections")
         else:
-            objectShapes, sections, faces = self.doCut(
+            result = self.doCut(
                 cutplane, hidden, clip, clipDepth, self.objectShapes)
 
-            self.objectShapes = objectShapes
-            self.sections = sections
-            self.secondaryFaces = faces
+            self.objectShapes = result.objectShapes
+            self.sections = result.sections
+            self.secondaryFaces = result.faces
 
             if DEBUG:
                 print("Built ", len(self.sections), " sections")
@@ -606,11 +613,11 @@ class Renderer:
             windowShapes, windows, faces = self.doCut(
                 cutplane, hidden, clip, clipDepth, self.windowShapes)
 
-            self.windowShapes = windowShapes
-            self.windows = windows
+            self.windowShapes = result.objectShapes
+            self.windows = result.sections
 
             if DEBUG:
-                print("Built ", len(self.sections), " windows")
+                print("Built ", len(self.windows), " windows")
 
         if not self.sectionCutShapes:
             if DEBUG:
@@ -968,7 +975,7 @@ if __name__ == "__main__":
     # render.addObjects([FreeCAD.ActiveDocument.Wall001])
     # render.addObjects([FreeCAD.ActiveDocument.Box,
     #                    FreeCAD.ActiveDocument.Wall003])
-    # render.addObjects(FreeCAD.ActiveDocument.Objects)
+    render.addObjects(FreeCAD.ActiveDocument.BuildingPart001.Group)
 
     render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
 
