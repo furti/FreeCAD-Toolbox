@@ -304,11 +304,12 @@ class SectionCutData:
         self.text = text
 
 class CutResult:
-    def __init__(self, objectShapes, sections, faces, cutvolume):
+    def __init__(self, objectShapes, sections, faces, cutvolume, cutface):
         self.objectShapes = objectShapes
         self.sections = sections
         self.faces = faces
         self.cutvolume = cutvolume
+        self.cutface = cutface
 
 
 def indexOfFace(faceList, face):
@@ -525,7 +526,6 @@ class Renderer:
                   (cutface, cutvolume, invcutvolume))
 
         if cutface and cutvolume:
-
             for sh in shapes:
                 for sol in sh[0].Solids:
                     c = sol.cut(cutvolume)
@@ -552,34 +552,20 @@ class Renderer:
             faces = [f for f in faces if self.isInRange(
                 f.originalFace, clipDepth)]
 
-        return CutResult(objectShapes, sections, faces, cutvolume)
+        return CutResult(objectShapes, sections, faces, cutvolume, cutface)
 
-    def doCutSectionCuts(self, cutplane, sectionCutShapes):
+    def doCutSectionCuts(self, cutvolume, cutface, sectionCutShapes):
         edges = []
-        shapes = [s.face for s in sectionCutShapes]
 
-        cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
-            cutplane, shapes, clip=False)
-
-        if not cutvolume:
-            cutface = cutplane
-            cutnormal = cutplane.normalAt(0.5, 0.5)
-            cutvolume = cutplane.extrude(cutnormal)
-            cutnormal = cutnormal.negative()
-            invcutvolume = cutplane.extrude(cutnormal)
-
-        if DEBUG:
-            print('SectionCuts cutface: %s, cutvolume: %s, invcutvolume: %s' %
-                  (cutface, cutvolume, invcutvolume))
-
-        if cutface and cutvolume:
+        if cutvolume:
             for s in sectionCutShapes:
                 sh = s.face
                 c = sh.cut(cutvolume)
                 normal = sh.normalAt(0.5, 0.5)
 
                 for e in c.Edges:
-                    if isEdgeOnPlane(e, cutplane):
+                    if isEdgeOnPlane(e, cutface):
+                        e = self.projectEdge(e)
                         edges.append((e, normal, s.text))
 
         return edges
@@ -591,17 +577,24 @@ class Renderer:
 
         if self.iscut:
             return
+        
+        objectCutVolume = None
+        objectCutFace = None
 
         if not self.objectShapes:
             if DEBUG:
                 print("No objects to make sections")
         else:
+            # We always use a clipping cut here. The section plane needs to be big enough
+            # But we need it clipping for the sectionCutShapes later on
             result = self.doCut(
-                cutplane, hidden, clip, clipDepth, self.objectShapes)
+                cutplane, hidden, True, clipDepth, self.objectShapes)
 
             self.objectShapes = result.objectShapes
             self.sections = result.sections
             self.secondaryFaces = result.faces
+            objectCutVolume = result.cutvolume
+            objectCutFace = result.cutface
 
             if DEBUG:
                 print("Built ", len(self.sections), " sections")
@@ -610,7 +603,7 @@ class Renderer:
             if DEBUG:
                 print("No objects to make windows")
         else:
-            windowShapes, windows, faces = self.doCut(
+            result = self.doCut(
                 cutplane, hidden, clip, clipDepth, self.windowShapes)
 
             self.windowShapes = result.objectShapes
@@ -624,7 +617,7 @@ class Renderer:
                 print("No objects to make sectionCuts")
         else:
             self.sectionCuts = self.doCutSectionCuts(
-                cutplane, self.sectionCutShapes)
+                objectCutVolume, objectCutFace, self.sectionCutShapes)
 
             if DEBUG:
                 print("Built ", len(self.sectionCuts), " sectionCuts")
@@ -929,7 +922,7 @@ class Renderer:
 
 
 if __name__ == "__main__":
-    def calculateCutPlane(pl, l=10000, h=10000):
+    def calculateCutPlane(pl, l=18889, h=14706):
         import Part
 
         p = Part.makePlane(l, h, FreeCAD.Vector(
@@ -947,7 +940,7 @@ if __name__ == "__main__":
 
     # Top
     pl = FreeCAD.Placement(
-        FreeCAD.Vector(0, 0, 1200), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+        FreeCAD.Vector(9440, 7350, -1500), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
@@ -962,7 +955,7 @@ if __name__ == "__main__":
     #     FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # print(pl)
 
-    cutplane = calculateCutPlane(pl)
+    cutplane = calculateCutPlane(pl, 15000, 15000)
 
     # Right
     # opl = FreeCAD.Placement(
@@ -972,14 +965,15 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    # render.addObjects([FreeCAD.ActiveDocument.Wall001])
+    # render.addObjects([FreeCAD.ActiveDocument.Structure002])
     # render.addObjects([FreeCAD.ActiveDocument.Box,
     #                    FreeCAD.ActiveDocument.Wall003])
-    render.addObjects(FreeCAD.ActiveDocument.BuildingPart001.Group)
+    # render.addObjects(FreeCAD.ActiveDocument.BuildingPart001.Group)
+    render.addObjects(FreeCAD.ActiveDocument.BuildingPart002.Group)
 
     render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
 
-    render.cut(cutplane, clip=False)
+    render.cut(cutplane, clip=True)
 
     parts = render.getSvgParts(0)
 
