@@ -299,7 +299,7 @@ class SimpleSectionPlane:
 
     def onDocumentRestored(self, obj):
         self.setupProperties(obj)
-
+    
     def __getstate__(self):
         return None
 
@@ -326,6 +326,43 @@ class SimpleSectionPlane:
 
         self.buildSvgParts(obj, render, groups)
         self.drafts = groups["drafts"]
+    
+    def getBoundBox(self):
+        bb = FreeCAD.BoundBox()
+        obj = self.Object
+
+        objectsToProcess = filterObjects(
+            obj.IncludeObjects, obj.ExcludeObjects)
+        
+        for o in objectsToProcess:
+            if hasattr(o,"Shape") and hasattr(o.Shape,"BoundBox"):
+                bb.add(o.Shape.BoundBox)
+        
+        return bb
+
+    def reposition(self):
+        bb = self.getBoundBox()
+        obj = self.Object
+        cutplane = self.calculateCutPlane(obj)
+
+        n = cutplane.normalAt(0,0)
+        margin = 10
+        base = obj.Placement.Base
+
+        if (n.getAngle(FreeCAD.Vector(1,0,0)) < 0.1) or (n.getAngle(FreeCAD.Vector(-1,0,0)) < 0.1):
+            obj.PlaneLength = bb.YLength+margin
+            obj.PlaneHeight = bb.ZLength+margin
+            base = FreeCAD.Vector(obj.Placement.Base.x, bb.Center.y, bb.Center.z)
+        elif (n.getAngle(FreeCAD.Vector(0,1,0)) < 0.1) or (n.getAngle(FreeCAD.Vector(0,-1,0)) < 0.1):
+            obj.PlaneLength = bb.XLength+margin
+            obj.PlaneHeight = bb.ZLength+margin
+            base = FreeCAD.Vector(bb.x, obj.Placement.Base.y, bb.Center.z)
+        elif (n.getAngle(FreeCAD.Vector(0,0,1)) < 0.1) or (n.getAngle(FreeCAD.Vector(0,0,-1)) < 0.1):
+            obj.PlaneLength = bb.XLength+margin
+            obj.PlaneHeight = bb.YLength+margin
+            base = FreeCAD.Vector(bb.Center.x, bb.Center.y, obj.Placement.Base.z)
+        
+        obj.Placement.Base = base
 
     def buildSvgParts(self, obj, render, groups):
         faceHighlightDistance = obj.FaceHighlightDistance

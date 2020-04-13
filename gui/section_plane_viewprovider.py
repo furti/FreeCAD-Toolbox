@@ -41,6 +41,13 @@ class ViewProviderSimpleSectionPlane():
             self.updatePlaneCoordinates(obj.ViewObject)
         elif prop in ["PlaneLength", "PlaneHeight"]:
             self.updatePlaneCoordinates(obj.ViewObject)
+    
+    def setupContextMenu(self, obj, menu):
+        action = menu.addAction("Reposition Plane")
+        action.triggered.connect(self.reposition)
+    
+    def reposition(self, vobj):
+        self.Object.Proxy.reposition()
 
     def updatePlaneCoordinates(self, vobj):
         obj = vobj.Object
