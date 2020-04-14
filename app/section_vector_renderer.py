@@ -497,7 +497,9 @@ class Renderer:
             if vnorm.getAngle(sh.normalAt(0, 0)) > 1:
                 sh.reverse()
 
-            return FaceData(face.originalFace, face.color, face.pattern_type, sh)
+            face.reorientedFace = sh
+
+            return face
 
     def projectEdge(self, edge):
         "projects a single edge on the WP"
