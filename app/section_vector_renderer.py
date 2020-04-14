@@ -300,10 +300,10 @@ class FaceData:
         return self.points
 
     def correctlyOriented(self, planeNormal):
-        if not self.reorientedFace:
+        if not self.originalFace:
             return True
 
-        faceNormal = self.reorientedFace.normalAt(0, 0)
+        faceNormal = self.originalFace.normalAt(0, 0)
         angle = math.degrees(faceNormal.getAngle(planeNormal))
         angle = round(angle, DraftVecUtils.precision())
 
@@ -541,7 +541,7 @@ class Renderer:
 
         cutface, cutvolume, invcutvolume = ArchCommands.getCutVolume(
             cutplane, shps, clip=clip)
-        planeNormal = getProj(self.wp.getNormal(), self.wp)
+        planeNormal = self.wp.getNormal()
         planeNormal.normalize()
 
         if not cutvolume:
@@ -1018,8 +1018,8 @@ if __name__ == "__main__":
         return p
 
     # Top
-    pl = FreeCAD.Placement(
-        FreeCAD.Vector(9440, 7350, 4450), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+    # pl = FreeCAD.Placement(
+    #     FreeCAD.Vector(9440, 7350, 4450), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
@@ -1030,11 +1030,11 @@ if __name__ == "__main__":
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, 15000, 0), FreeCAD.Rotation(FreeCAD.Vector(0, -0.71, -0.71), 180))
     # custom
-    # pl = FreeCAD.Placement(
-    #     FreeCAD.Vector(1000, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
+    pl = FreeCAD.Placement(
+        FreeCAD.Vector(9280, 7348, 1702), FreeCAD.Rotation(FreeCAD.Vector(0.577, 0.577, 0.577), 120))
     # print(pl)
 
-    cutplane = calculateCutPlane(pl, 15000, 15000)
+    cutplane = calculateCutPlane(pl, 14706, 10915)
 
     # Right
     # opl = FreeCAD.Placement(
@@ -1044,14 +1044,15 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    render.addObjects([FreeCAD.ActiveDocument.Wall045])
+    render.addObjects([FreeCAD.ActiveDocument.Roof001])
+    # render.addObjects([FreeCAD.ActiveDocument.Structure108])
     # render.addObjects([FreeCAD.ActiveDocument.Box,
     #                    FreeCAD.ActiveDocument.Wall003])
     # render.addObjects(FreeCAD.ActiveDocument.BuildingPart001.Group)
     # render.addObjects(FreeCAD.ActiveDocument.BuildingPart002.Group)
 
     # render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
-    render.addMarkers([FreeCAD.ActiveDocument.Rectangle033])
+    # render.addMarkers([FreeCAD.ActiveDocument.Rectangle033])
 
     tracemalloc.start()
     startTime = time.time()
