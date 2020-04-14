@@ -267,15 +267,14 @@ class FaceData:
         self.color = color
         self.pattern_type = pattern_type
         self.reorientedFace = reorientedFace
+        self.points = None
 
     def matches(self, otherFace):
-        if not self.reorientedFace or not otherFace.reorientedFace:
-            return False
+        selfPoints = self.getPoints()
+        otherPoints = otherFace.getPoints()
 
-        selfPoints = [(round(v.Point.x, 5), round(v.Point.y, 5))
-                      for v in self.reorientedFace.Vertexes]
-        otherPoints = [(round(v.Point.x, 5), round(v.Point.y, 5))
-                       for v in otherFace.reorientedFace.Vertexes]
+        if not selfPoints or not otherPoints:
+            return False
 
         if len(selfPoints) != len(otherPoints):
             return False
@@ -287,6 +286,18 @@ class FaceData:
                 return False
 
         return True
+    
+    def getPoints(self):
+        if self.points:
+            return self.points
+
+        if not self.reorientedFace:
+            return None
+        
+        self.points = [(round(v.Point.x, 5), round(v.Point.y, 5))
+                        for v in self.reorientedFace.Vertexes]
+        
+        return self.points
 
     def correctlyOriented(self, planeNormal):
         if not self.reorientedFace:
@@ -922,6 +933,9 @@ class Renderer:
 
 
 if __name__ == "__main__":
+    import time
+    import tracemalloc
+
     def calculateCutPlane(pl, l=18889, h=14706):
         import Part
 
@@ -965,7 +979,7 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    # render.addObjects([FreeCAD.ActiveDocument.Structure002])
+    # render.addObjects([FreeCAD.ActiveDocument.Wall020])
     # render.addObjects([FreeCAD.ActiveDocument.Box,
     #                    FreeCAD.ActiveDocument.Wall003])
     # render.addObjects(FreeCAD.ActiveDocument.BuildingPart001.Group)
@@ -973,9 +987,20 @@ if __name__ == "__main__":
 
     render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
 
-    render.cut(cutplane, clip=True)
+    tracemalloc.start()
+    startTime = time.time()
 
+    render.cut(cutplane, clip=True)
     parts = render.getSvgParts(0)
+
+    endTime = time.time()
+    top_stats = tracemalloc.take_snapshot().statistics("lineno")
+
+    print("Needed %s s, %s MB" %(endTime - startTime, tracemalloc.get_traced_memory()[0] / 1024 / 1024))
+    for stat in top_stats[:10]:
+        print(stat)
+    
+    tracemalloc.stop()
 
     boundBox = parts["boundBox"]
     # boundBox.adaptFromDrafts([FreeCAD.ActiveDocument.Dimension005])
