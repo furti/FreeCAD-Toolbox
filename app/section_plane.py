@@ -258,6 +258,10 @@ class SimpleSectionPlane:
         if not "SectionCuts" in pl:
             obj.addProperty("App::PropertyLinkList", "SectionCuts", "Objects", QT_TRANSLATE_NOOP(
                 "App::Property", "A list of secion cuts to display"))
+        
+        if not "Markers" in pl:
+            obj.addProperty("App::PropertyLinkList", "Markers", "Objects", QT_TRANSLATE_NOOP(
+                "App::Property", "A list of markers to display"))
 
         if not "TargetFile" in pl:
             obj.addProperty("App::PropertyFile", "TargetFile",
@@ -378,6 +382,7 @@ class SimpleSectionPlane:
         self.patternSVG = parts["patterns"]
         self.draftSvg = getDraftSvg(groups["drafts"], wp)
         self.sectionCutSvg = parts["sectionCuts"]
+        self.markerSvg = parts["markers"]
         self.boundBox = parts["boundBox"]
 
         self.boundBox.adaptFromDrafts(groups["drafts"])
@@ -389,6 +394,7 @@ class SimpleSectionPlane:
         render.addObjects(groups["objects"])
         render.addWindows(groups["windows"])
         render.addSectionCuts(obj.SectionCuts)
+        render.addMarkers(obj.Markers)
         render.cut(cutplane, clip=shouldClip, clipDepth=obj.PlaneDepth.Value)
 
         return render
@@ -508,6 +514,10 @@ class SimpleSectionPlane:
                 SECTION_CUT_SVG
             </g>
 
+            <g id="markers">
+                MARKER_SVG
+            </g>
+
             <g id="information">
                 INFORMATION_SVG
             </g>
@@ -526,8 +536,10 @@ class SimpleSectionPlane:
         template = template.replace("WINDOW_SVG", self.windowSVG)
         template = template.replace("DRAFT_SVG", self.draftSvg)
         template = template.replace("SECTION_CUT_SVG", self.sectionCutSvg)
+        template = template.replace("MARKER_SVG", self.markerSvg)
         template = template.replace(
             "INFORMATION_SVG", self.renderInformation(width, height, scale))
+        template = template.replace("SMALL_TEXT_FONT_SIZE", str(3 / scale))
         template = template.replace("TEXT_FONT_SIZE", str(4 / scale))
         template = template.replace(
             "DIMENSION_STROKE_WIDTH", toNumberString(0.2 / scale))
@@ -537,6 +549,7 @@ class SimpleSectionPlane:
             "WINDOW_STROKE_WIDTH", toNumberString(0.1 / scale))
         template = template.replace(
             "SECONDARY_STROKE_WIDTH", toNumberString(0.1 / scale))
+        template = template.replace("MARKER_STROKE_WIDTH", toNumberString(0.2 / scale))
         template = template.replace(
             "VIEWBOX_VALUES", self.boundBox.buildViewbox(scale, width, height))
         template = template.replace("SECTION_CUT_STROKE_WIDTH", toNumberString(0.2 / scale))
@@ -558,22 +571,23 @@ if __name__ == "__main__":
 
         # simpleSectionPlaneObject.FaceHighlightDistance = 6600
 
-        simpleSectionPlaneObject.IncludeObjects = [
-            FreeCAD.ActiveDocument.Structure]
         # simpleSectionPlaneObject.IncludeObjects = [
-        #     FreeCAD.ActiveDocument.Wall003]
+        #     FreeCAD.ActiveDocument.Structure]
+        simpleSectionPlaneObject.IncludeObjects = [
+            FreeCAD.ActiveDocument.Wall045]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.BuildingPart]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.BuildingPart001]
         # simpleSectionPlaneObject.IncludeObjects = [
         #     FreeCAD.ActiveDocument.Wall003, FreeCAD.ActiveDocument.Dimension004]
+        simpleSectionPlaneObject.Markers = [FreeCAD.ActiveDocument.Rectangle033]
 
-        simpleSectionPlaneObject.SectionCuts = [otherSectionPlaneObject]
+        # simpleSectionPlaneObject.SectionCuts = [otherSectionPlaneObject]
 
         # Top
         simpleSectionPlaneObject.Placement = FreeCAD.Placement(
-            Vector(0, 0, 1000), FreeCAD.Rotation(Vector(0, 0, 1), 0))
+            Vector(0, 0, 4540), FreeCAD.Rotation(Vector(0, 0, 1), 0))
         # Front
         # simpleSectionPlaneObject.Placement = FreeCAD.Placement(
         #     Vector(0, -1000, 0), FreeCAD.Rotation(Vector(1, 0, 0), 90))

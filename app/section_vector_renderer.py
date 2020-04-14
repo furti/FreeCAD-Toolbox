@@ -83,8 +83,8 @@ WINDOW_PATTERN_TEMPLATE = """
 """
 
 PATH_TEMPLATE = """
-<path d="PATH_DATA" stroke="#000000" stroke-width="STROKE_WIDTH"
-      style="fill:PATH_FILL; fill-rule: evenodd; stroke-width:STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:none;"/>
+<path d="PATH_DATA" stroke="STROKE_COLOR" stroke-width="STROKE_WIDTH"
+      style="fill:PATH_FILL; fill-rule: evenodd; stroke-width:STROKE_WIDTH; stroke-miterlimit:1; stroke-linejoin:round; stroke-dasharray:DASH_ARRAY; fill-opacity:FILL_OPACITY"/>
 """
 
 SECTION_CUT_TEMPLATE = """
@@ -103,7 +103,7 @@ TEXT_TEMPLATE = """
 <text
         x="TEXT_POSITION_X"
         y="TEXT_POSITION_Y"
-        style="font-size:TEXT_FONT_SIZE;font-family:Arial;letter-spacing:0px;word-spacing:0px;fill:#000000;text-anchor:middle;text-align:center;stroke:none;"
+        style="font-size:TEXT_FONT_SIZE;font-family:Arial;letter-spacing:0px;word-spacing:0px;fill:#000000;text-anchor:TEXT_ANCHOR;text-align:center;stroke:none;"
         transform="rotate(TEXT_ROTATION)">
             TEXT_CONTENT
 </text>
@@ -314,6 +314,12 @@ class SectionCutData:
         self.face = face
         self.text = text
 
+class MarkerData:
+    def __init__(self, face, text, color):
+        self.face = face
+        self.text = text
+        self.color = color
+
 class CutResult:
     def __init__(self, objectShapes, sections, faces, cutvolume, cutface):
         self.objectShapes = objectShapes
@@ -351,6 +357,7 @@ class Renderer:
         self.objectShapes = []
         self.windowShapes = []
         self.sectionCutShapes = []
+        self.markerShapes = []
         self.resetFlags()
 
     def resetFlags(self):
@@ -396,6 +403,16 @@ class Renderer:
             data = SectionCutData(sectionCutCutPlane, s.Label)
 
             self.sectionCutShapes.append(data)
+
+        self.resetFlags()
+    
+    def addMarkers(self, markers):
+        "add objects to this renderer"
+
+        for m in markers:
+            color = m.ViewObject.LineColor
+            face = m.Shape.Faces[0]
+            self.markerShapes.append(MarkerData(face, m.Label, color))
 
         self.resetFlags()
 
@@ -732,12 +749,49 @@ class Renderer:
                     pathdata += self.getPathData(w)
 
                 current = PATH_TEMPLATE.replace("PATH_FILL", fill)
+                current = current.replace("FILL_OPACITY", "1")
+                current = current.replace("DASH_ARRAY", "none")
+                current = current.replace("STROKE_COLOR", "#000000")
                 current = current.replace("STROKE_WIDTH", str(linewidth))
                 current = current.replace("PATH_DATA", pathdata)
 
                 sectionsvg += current + "\n"
 
         return sectionsvg
+    
+    def getMarkerSVG(self, linewidth):
+        markersvg = ''
+
+        for m in self.markerShapes:
+            # fill = 'url(#' + self.getPattern(f.color, f.pattern_type) + ')'
+
+            pathdata = ''
+            fillColor = self.getFill(m.color)
+
+            reorientedFace = self.projectFace(FaceData(m.face, None, None)).reorientedFace
+            textPos = reorientedFace.CenterOfMass
+
+            for w in reorientedFace.Wires:
+                pathdata += self.getPathData(w)
+
+            path = PATH_TEMPLATE.replace("PATH_FILL", fillColor)
+            path = path.replace("FILL_OPACITY", "0.04")
+            path = path.replace("DASH_ARRAY", "100,50")
+            path = path.replace("STROKE_COLOR", fillColor)
+            path = path.replace("STROKE_WIDTH", str(linewidth))
+            path = path.replace("PATH_DATA", pathdata)
+
+            text = TEXT_TEMPLATE.replace("TEXT_CONTENT", m.text)
+            text = text.replace("TEXT_FONT_SIZE", "SMALL_TEXT_FONT_SIZE")
+            text = text.replace("TEXT_ANCHOR", "middle")
+            text = text.replace("TEXT_POSITION_X", toNumberString(textPos.x))
+            text = text.replace("TEXT_POSITION_Y", toNumberString(-textPos.y))
+            text = text.replace("TEXT_ROTATION", "0")
+
+            markersvg += "%s %s\n" % (path, text)
+
+        return markersvg
+
 
     def getSectionCutSvg(self, linewidth):
         svg = ''
@@ -768,6 +822,7 @@ class Renderer:
             baseYString = toNumberString(baseY)
 
             svg = TEXT_TEMPLATE.replace("TEXT_POSITION_X", baseXString)
+            text = text.replace("TEXT_ANCHOR", "middle")
             svg = svg.replace("TEXT_POSITION_Y", baseYString)
             svg = svg.replace("TEXT_CONTENT", text)
             svg = svg.replace("TEXT_ROTATION", rotation(baseX, baseY, angle))
@@ -819,6 +874,9 @@ class Renderer:
                     pathdata += self.getPathData(w)
 
                 current = PATH_TEMPLATE.replace("PATH_FILL", fill)
+                current = current.replace("FILL_OPACITY", "1")
+                current = current.replace("DASH_ARRAY", "none")
+                current = current.replace("STROKE_COLOR", "#000000")
                 current = current.replace("STROKE_WIDTH", str(linewidth))
                 current = current.replace("PATH_DATA", pathdata)
 
@@ -863,6 +921,9 @@ class Renderer:
                     pathdata += self.getPathData(w)
 
                 current = PATH_TEMPLATE.replace("PATH_FILL", fill)
+                current = current.replace("FILL_OPACITY", "1")
+                current = current.replace("DASH_ARRAY", "none")
+                current = current.replace("STROKE_COLOR", "#000000")
                 current = current.replace("STROKE_WIDTH", str(linewidth))
                 current = current.replace("PATH_DATA", pathdata)
 
@@ -885,6 +946,7 @@ class Renderer:
             "SECONDARY_STROKE_WIDTH", faceHighlightDistance, "SECTION_STROKE_WIDTH")
         patternSvg = self.getPatternSVG()
         sectionCutSvg = self.getSectionCutSvg("SECTION_CUT_STROKE_WIDTH")
+        markerSvg = self.getMarkerSVG("MARKER_STROKE_WIDTH")
         boundBox = self.buildBoundBox()
 
         return {
@@ -893,7 +955,8 @@ class Renderer:
             "secondaryFaces": secondaryFacesSvg,
             "windows": windowSvg,
             "boundBox": boundBox,
-            "sectionCuts": sectionCutSvg
+            "sectionCuts": sectionCutSvg,
+            "markers": markerSvg
         }
 
     def buildBoundBox(self):
@@ -956,7 +1019,7 @@ if __name__ == "__main__":
 
     # Top
     pl = FreeCAD.Placement(
-        FreeCAD.Vector(9440, 7350, -1500), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
+        FreeCAD.Vector(9440, 7350, 4450), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 0))
     # Front
     # pl = FreeCAD.Placement(
     #     FreeCAD.Vector(0, -1000, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
@@ -981,13 +1044,14 @@ if __name__ == "__main__":
     DEBUG = True
 
     render = Renderer(pl)
-    # render.addObjects([FreeCAD.ActiveDocument.Wall020])
+    render.addObjects([FreeCAD.ActiveDocument.Wall045])
     # render.addObjects([FreeCAD.ActiveDocument.Box,
     #                    FreeCAD.ActiveDocument.Wall003])
     # render.addObjects(FreeCAD.ActiveDocument.BuildingPart001.Group)
-    render.addObjects(FreeCAD.ActiveDocument.BuildingPart002.Group)
+    # render.addObjects(FreeCAD.ActiveDocument.BuildingPart002.Group)
 
-    render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
+    # render.addSectionCuts([FreeCAD.ActiveDocument.SectionPlane026, FreeCAD.ActiveDocument.SectionPlane027])
+    render.addMarkers([FreeCAD.ActiveDocument.Rectangle033])
 
     tracemalloc.start()
     startTime = time.time()
@@ -1065,6 +1129,10 @@ if __name__ == "__main__":
                 SECTION_CUT_SVG
             </g>
 
+            <g id="markers">
+                MARKER_SVG
+            </g>
+
             <g id="information">
                 INFORMATION_SVG
             </g>
@@ -1084,8 +1152,11 @@ if __name__ == "__main__":
     template = template.replace("SECTION_SVG", parts["sections"])
     template = template.replace("WINDOW_SVG", parts["windows"])
     template = template.replace("SECTION_CUT_SVG", parts["sectionCuts"])
+    template = template.replace("MARKER_SVG", parts["markers"])
+    template = template.replace("SMALL_TEXT_FONT_SIZE", str(3 / scale))
     template = template.replace("TEXT_FONT_SIZE", str(240))
     template = template.replace("SECTION_STROKE_WIDTH", str(3))
+    template = template.replace("MARKER_STROKE_WIDTH", str(0.12 / scale))
     template = template.replace("WINDOW_STROKE_WIDTH", str(1))
     template = template.replace("SECONDARY_STROKE_WIDTH", str(1))
     template = template.replace("SECTION_CUT_STROKE_WIDTH", str(0.05 / scale))
