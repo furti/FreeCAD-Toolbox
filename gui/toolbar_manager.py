@@ -19,3 +19,4 @@ import commands.include_in_section
 import commands.exclude_from_section
 import commands.create_raffstore
 import commands.meshify
+import commands.build_legend
