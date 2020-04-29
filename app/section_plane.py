@@ -287,6 +287,10 @@ class SimpleSectionPlane:
             obj.addProperty("App::PropertyDistance", "DocumentHeight",
                             "Document", "The page height of the rendered document").DocumentHeight = 297
 
+        if not "CutLetter" in pl:
+            obj.addProperty("App::PropertyString", "CutLetter",
+                            "Document", "The Letter to show when this section plane is used as a section cut inside another section plane")
+                            
         if not "PlaneLength" in pl:
             obj.addProperty("App::PropertyDistance", "PlaneLength",
                             "SectionPlane", "The length of the sectionplane. When greater 0 the cutplane will be clipped").PlaneLength = 0
@@ -434,9 +438,11 @@ class SimpleSectionPlane:
         return p
 
     def renderInformation(self, width, height, scale):
-        label = self.Object.Label
+        obj = self.Object
+        label = obj.Label
         scaleText = "1:%s" % (toNumberString(1/scale, 0),)
         fontSize = toNumberString(10/scale)
+        smallFontSize = toNumberString(5/scale)
 
         scaledWidth, scaleHeight, x, y = self.boundBox.calculateOffset(
             scale, width, height)
@@ -463,7 +469,23 @@ class SimpleSectionPlane:
         scaleSvg = scaleSvg.replace("text-anchor:middle", "text-anchor:end")
         scaleSvg = scaleSvg.replace("text-align:center", "text-align:end")
 
-        return "%s\n%s" % (labelSvg, scaleSvg)
+        
+
+        if hasattr(obj, "CutLetter") and obj.CutLetter is not None:
+            cutLetterSvg = TEXT_TEMPLATE.replace("TEXT_CONTENT", "%s-%s" % (obj.CutLetter, obj.CutLetter))
+            cutLetterSvg = cutLetterSvg.replace(
+                "TEXT_POSITION_X", pageEndX)
+            cutLetterSvg = cutLetterSvg.replace(
+                "TEXT_POSITION_Y", toNumberString(y + 35 / scale))
+            cutLetterSvg = cutLetterSvg.replace("TEXT_ROTATION", "0")
+            cutLetterSvg = cutLetterSvg.replace("TEXT_FONT_SIZE", smallFontSize)
+            cutLetterSvg = cutLetterSvg.replace("text-anchor:middle", "text-anchor:end")
+            cutLetterSvg = cutLetterSvg.replace("text-align:center", "text-align:end")
+        else:
+            cutLetterSvg = ""
+
+
+        return "%s\n%s%s" % (labelSvg, scaleSvg, cutLetterSvg)
 
     def getSvg(self, width=420, height=297, scale=1/50):
         if not self.sectionSVG:

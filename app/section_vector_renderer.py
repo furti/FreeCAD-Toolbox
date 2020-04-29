@@ -399,8 +399,13 @@ class Renderer:
         "add objects to this renderer"
 
         for s in sections:
+            label = s.Label
+
+            if hasattr(s, "CutLetter") and s.CutLetter is not None:
+                label = s.CutLetter
+            
             sectionCutCutPlane = s.Proxy.calculateCutPlane(s)
-            data = SectionCutData(sectionCutCutPlane, s.Label)
+            data = SectionCutData(sectionCutCutPlane, label)
 
             self.sectionCutShapes.append(data)
 
